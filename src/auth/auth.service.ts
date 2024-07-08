@@ -31,6 +31,9 @@ export class AuthService {
         })
 
         if(!user) throw new ForbiddenException('Access Denied');
+
+        const passwordMatches = await bcrypt.compare(dto.password, user.password);
+        if (!passwordMatches) throw new ForbiddenException('Access Denied');
         
         const tokens = await this.getTokens( user.id, user.email)
         await this.updateRtHash(user.id, tokens.refreshToken)

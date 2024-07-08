@@ -6,7 +6,7 @@ import { Tokens } from './types';
 import { AtGuard, RtGuard } from 'src/common';
 import { GetCurrentUser, GetCurrentUserId } from 'src/decorators';
 
-@Controller('auth')
+@Controller()
 export class AuthController {
     constructor(private authService: AuthService) {}
     
@@ -25,7 +25,7 @@ export class AuthController {
     }
 
     @UseGuards(AtGuard)
-    @Post('Logout')
+    @Post('logout')
     @HttpCode(HttpStatus.OK)
     logout(@GetCurrentUserId() userId: string){
         return this.authService.logout(userId);
