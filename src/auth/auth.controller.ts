@@ -1,5 +1,5 @@
 import { Public } from './../decorators/public.decorator';
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthDto } from './dto';
 import { Tokens } from './types';
@@ -33,7 +33,7 @@ export class AuthController {
 
     @Public()
     @UseGuards(RtGuard)
-    @Post('refresh')
+    @Get('refresh')
     @HttpCode(HttpStatus.OK)
     refreshTokens(@GetCurrentUserId() userId: string, @GetCurrentUser('refreshToken') refreshToken: string){
         return this.authService.refreshTokens(userId,refreshToken);

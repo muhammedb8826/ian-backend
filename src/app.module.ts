@@ -11,7 +11,7 @@ import { UserModule } from './user/user.module';
     {
       provide: APP_GUARD,
       useClass: AtGuard
-    }
+    },
   ]
 })
 export class AppModule {}
