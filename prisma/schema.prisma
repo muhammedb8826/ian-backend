@@ -22,9 +22,9 @@ model users {
   first_name      String?
   middle_name     String?
   last_name       String?
-  gender    String    @default("male")
-  phone String?
-  address   String?
+  gender    String    @default("MALE")
+  phone String @unique
+  address   String
   roles     Role      @default(ADMIN)
   profile String?
   machinePermissions UserMachinePermission[]

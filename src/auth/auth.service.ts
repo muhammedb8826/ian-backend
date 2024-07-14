@@ -9,13 +9,15 @@ import { JwtService } from '@nestjs/jwt';
 export class AuthService {
     constructor(private prisma: PrismaService,private jwtService: JwtService) {}
    async signupLocal(dto: AuthDto): Promise<{ tokens: Tokens, user: any }> {
-        const { email, password } = dto;
+        const { email, password, phone, address } = dto;
         const hashedPassword = await this.hashPassword(password);
        const newUser = await this.prisma.users.create({
         data: {
          email,
          password: hashedPassword,
-         confirm_password: hashedPassword,   
+         confirm_password: hashedPassword,  
+         phone,
+         address 
         }
        })
 
@@ -42,7 +44,6 @@ export class AuthService {
         const tokens = await this.getTokens( user.id, user.email)
         await this.updateRtHash(user.id, tokens.refreshToken)
         return {tokens, user}
-
     }
 
 
