@@ -14,6 +14,7 @@ export class UsersService {
       data: {
         email: createUserDto.email,
         password: createUserDto.password,
+        confirm_password: createUserDto.confirm_password,
         first_name: createUserDto.first_name,
         middle_name: createUserDto.middle_name,
         last_name: createUserDto.last_name,
@@ -48,6 +49,7 @@ export class UsersService {
       data: {
         email: updateUserDto.email,
         password: updateUserDto.password,
+        confirm_password: updateUserDto.confirm_password,
         first_name: updateUserDto.first_name,
         middle_name: updateUserDto.middle_name,
         last_name: updateUserDto.last_name,

@@ -8,6 +8,7 @@ async function main() {
     const email = 'admin@ian.com';
   const password = 'password';
   const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedConfirmPassword = await bcrypt.hash(password, 10);
     const existingUser = await prisma.users.findUnique({
         where: { email },
       });
@@ -22,6 +23,7 @@ async function main() {
     phone: "+1234567890",
     email: "admin@ian.com",
     password: hashedPassword,
+    confirm_password: hashedConfirmPassword,
     address: "123 Main Street",
     profile: "profile.png",
     roles: "ADMIN",

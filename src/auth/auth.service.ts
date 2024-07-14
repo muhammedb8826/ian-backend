@@ -8,22 +8,26 @@ import { JwtService } from '@nestjs/jwt';
 @Injectable()
 export class AuthService {
     constructor(private prisma: PrismaService,private jwtService: JwtService) {}
-   async signupLocal(dto: AuthDto): Promise<Tokens> {
+   async signupLocal(dto: AuthDto): Promise<{ tokens: Tokens, user: any }> {
         const { email, password } = dto;
         const hashedPassword = await this.hashPassword(password);
        const newUser = await this.prisma.users.create({
         data: {
          email,
-         password: hashedPassword   
+         password: hashedPassword,
+         confirm_password: hashedPassword,   
         }
        })
 
        const tokens = await this.getTokens( newUser.id, newUser.email)
        await this.updateRtHash(newUser.id, tokens.refreshToken)
-       return tokens
+       return {
+        tokens,
+        user: newUser
+       }
     }
 
-    async signinLocal(dto: AuthDto): Promise<Tokens> {
+    async signinLocal(dto: AuthDto): Promise<{ tokens: Tokens, user: any }> {
         const user = await this.prisma.users.findUnique({
             where: {
                 email: dto.email,
@@ -37,7 +41,7 @@ export class AuthService {
         
         const tokens = await this.getTokens( user.id, user.email)
         await this.updateRtHash(user.id, tokens.refreshToken)
-        return tokens
+        return {tokens, user}
 
     }
 
@@ -68,7 +72,7 @@ export class AuthService {
 
             const tokens = await this.getTokens( user.id, user.email)
         await this.updateRtHash(user.id, tokens.refreshToken)
-        return tokens
+        return {tokens, user}
     } 
 
 

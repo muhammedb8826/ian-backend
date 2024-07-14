@@ -5,6 +5,7 @@ import { Role } from '@prisma/client';
 export class UpdateUserDto extends PartialType(CreateUserDto) {
     email: string;
     password: string;
+    confirm_password: string;
     first_name: string;
     middle_name: string;
     last_name: string
