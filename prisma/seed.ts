@@ -26,7 +26,8 @@ async function main() {
         address: "123 Main Street",
         profile: "profile.png",
         roles: "ADMIN",
-        isActive: true,
+        machine_permissions: [],
+        is_active: true,
       },
     });
 

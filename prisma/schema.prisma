@@ -27,8 +27,8 @@ model users {
   address   String
   roles     Role      @default(ADMIN)
   profile String?
-  machinePermissions UserMachinePermission[]
-  isActive  Boolean   @default(true)
+  machine_permissions UserMachinePermission[]
+  is_active  Boolean   @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

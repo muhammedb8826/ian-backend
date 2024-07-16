@@ -1,5 +1,5 @@
-import { Role } from "@prisma/client";
-import { IsEmail, IsNotEmpty, IsString } from "class-validator";
+import { Role, UserMachinePermission } from "@prisma/client";
+import { IsArray, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateUserDto {
     @IsEmail()
@@ -29,9 +29,21 @@ export class CreateUserDto {
     @IsNotEmpty()
     phone: string;
 
+    @IsOptional()
     address: string;
+
+    @IsEnum(Role)
     roles: Role;
+
+    @IsOptional()
+    @IsString()
     profile: string;
-    machinePermissions: [];
-    isActive: boolean;
+
+    @IsOptional()
+    @IsArray()
+    @IsEnum(UserMachinePermission, { each: true })
+    machine_permissions?: UserMachinePermission[];
+
+
+    is_active: boolean;
 }
