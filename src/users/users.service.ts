@@ -48,15 +48,28 @@ export class UsersService {
         phone: createUserDto.phone,
         address: createUserDto.address,
         roles: createUserDto.roles,
-        profile: createUserDto.profile,
+        profile: createUserDto.profile ? `/uploads/profile/${createUserDto.profile}` : null,
         machine_permissions: createUserDto.machine_permissions || undefined,
         is_active: boolValue
       }
     })
   }
 
-  async findAll() {
-    return this.prisma.users.findMany();
+  async findAll(skip: number, take: number) {
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.users.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      this.prisma.users.count()
+    ]);
+    return {
+      users,
+      total
+    }
   }
 
   async findOne(id: string) {
@@ -88,7 +101,7 @@ export class UsersService {
         phone: updateUserDto.phone,
         address: updateUserDto.address,
         roles: updateUserDto.roles,
-        profile: updateUserDto.profile,
+        profile: updateUserDto.profile ? `/uploads/profile/${updateUserDto.profile}` : null,
         machine_permissions: updateUserDto.machine_permissions || undefined,
         is_active: boolValue
       }

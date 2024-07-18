@@ -24,7 +24,7 @@ async function main() {
         password: hashedPassword,
         confirm_password: hashedPassword,
         address: "123 Main Street",
-        profile: "profile.png",
+        profile: "",
         roles: "ADMIN",
         machine_permissions: [],
         is_active: true,

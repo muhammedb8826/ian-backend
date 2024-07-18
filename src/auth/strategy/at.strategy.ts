@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt,  Strategy } from 'passport-jwt';
 import { PrismaService } from "src/prisma/prisma.service";
@@ -23,6 +23,9 @@ export class AtStrategy extends PassportStrategy(Strategy, 'jwt') {
                 id: payload.sub
             }
         })
+        if (!user) {
+            throw new UnauthorizedException('User not found');
+        }
         delete user.password
         return user;
     }
