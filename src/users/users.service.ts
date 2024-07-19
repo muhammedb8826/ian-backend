@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -9,8 +9,8 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(
     private prisma: PrismaService
-  ) {}
-  async create(createUserDto: CreateUserDto) : Promise<users> {
+  ) { }
+  async create(createUserDto: CreateUserDto): Promise<users> {
     if (createUserDto.password !== createUserDto.confirm_password) {
       throw new ForbiddenException('Passwords do not match');
     }
@@ -73,50 +73,69 @@ export class UsersService {
   }
 
   async findOne(id: string) {
-    return this.prisma.users.findUnique({
-      where: {
-        id: id
-      }
-      });
+    const user = await this.prisma.users.findUnique({
+      where: { id: id },
+    });
+    if (user && user.profile) {
+      user.profile = `/uploads/profile/${user.profile}`;
+    }
+
+    return user;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
-    if (updateUserDto.password !== updateUserDto.confirm_password) {
+    if (updateUserDto.password && updateUserDto.password !== updateUserDto.confirm_password) {
       throw new ForbiddenException('Passwords do not match');
     }
+
+    const user = await this.prisma.users.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
     const boolValue = Boolean(updateUserDto.is_active);
-    const hashedPassword = await this.hashPassword(updateUserDto.password);
+
+    const updateData: any = {
+      email: updateUserDto.email,
+      first_name: updateUserDto.first_name,
+      middle_name: updateUserDto.middle_name,
+      last_name: updateUserDto.last_name,
+      gender: updateUserDto.gender,
+      phone: updateUserDto.phone,
+      address: updateUserDto.address,
+      roles: updateUserDto.roles,
+      profile: updateUserDto.profile ? `/uploads/profile/${updateUserDto.profile}` : null,
+      machine_permissions: updateUserDto.machine_permissions || undefined,
+      is_active: boolValue,
+    };
+    if (updateUserDto.password) {
+      const hashedPassword = await this.hashPassword(updateUserDto.password);
+      updateData.password = hashedPassword;
+      updateData.confirm_password = hashedPassword;
+    }
+
     return this.prisma.users.update({
-      where: {
-        id: id
-      },
-      data: {
-        email: updateUserDto.email,
-        password: hashedPassword,
-        confirm_password: hashedPassword,
-        first_name: updateUserDto.first_name,
-        middle_name: updateUserDto.middle_name,
-        last_name: updateUserDto.last_name,
-        gender: updateUserDto.gender,
-        phone: updateUserDto.phone,
-        address: updateUserDto.address,
-        roles: updateUserDto.roles,
-        profile: updateUserDto.profile ? `/uploads/profile/${updateUserDto.profile}` : null,
-        machine_permissions: updateUserDto.machine_permissions || undefined,
-        is_active: boolValue
-      }
-    })
+      where: { id },
+      data: updateData,
+    });
   }
 
-  async hashPassword(password: string){
+  async hashPassword(password: string) {
     return await bcrypt.hash(password, 10);
-}
+  }
 
   async remove(id: string) {
+    const user = await this.prisma.users.findUnique({
+      where: { id },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
     return this.prisma.users.delete({
-      where: {
-        id: id
-      }
-    })
+      where: { id },
+    });
   }
 }
