@@ -6,9 +6,10 @@ import { AtGuard } from './common';
 import { UsersModule } from './users/users.module';
 import { FileController } from './file/file.controller';
 import { FileModule } from './file/file.module';
+import { MachinesModule } from './machines/machines.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule],
   providers: [
     {
       provide: APP_GUARD,

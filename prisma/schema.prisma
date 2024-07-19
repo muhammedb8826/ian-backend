@@ -55,3 +55,11 @@ enum UserMachinePermission {
   SUBLIMATION
 }
 
+model machines {
+  id        String  @id @default(cuid())
+  name      String @unique
+  status    Boolean @default(true)
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
