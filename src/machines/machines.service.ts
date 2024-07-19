@@ -29,24 +29,37 @@ export class MachinesService {
     })
   }
 
-  findAll() {
-    return this.prisma.machines.findMany();
+  async findAll(skip: number, take: number) {
+    const [machines, total] = await this.prisma.$transaction([
+      this.prisma.machines.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      this.prisma.machines.count()
+    ])
+    return {
+      machines,
+      total
+    }
   }
 
-  findOne(id: string) {
+  async findOne(id: string) {
     return this.prisma.machines.findUnique({
       where: {id}
     });
   }
 
-  update(id: string, updateMachineDto: UpdateMachineDto) {
+  async update(id: string, updateMachineDto: UpdateMachineDto) {
     return this.prisma.machines.update({
       where: {id},
       data: updateMachineDto
     })
   }
 
-  remove(id: string) {
+  async remove(id: string) {
     return this.prisma.machines.delete({
       where: {id},
     });

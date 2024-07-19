@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { MachinesService } from './machines.service';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
@@ -13,8 +13,10 @@ export class MachinesController {
   }
 
   @Get()
-  findAll() {
-    return this.machinesService.findAll();
+  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 5) {
+    const skip = (page - 1) * limit
+    const take = limit
+    return this.machinesService.findAll(skip, take);
   }
 
   @Get(':id')
