@@ -19,6 +19,11 @@ export class MachinesController {
     return this.machinesService.findAll(skip, take);
   }
 
+  @Get('all')
+  findAllMachines() {
+    return this.machinesService.findAllMachines();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.machinesService.findOne(id);

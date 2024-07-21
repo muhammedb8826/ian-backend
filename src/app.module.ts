@@ -7,6 +7,13 @@ import { UsersModule } from './users/users.module';
 import { FileController } from './file/file.controller';
 import { FileModule } from './file/file.module';
 import { MachinesModule } from './machines/machines.module';
+import { UserMachineController } from './user-machine/user-machine.controller';
+import { UserMachineService } from './user-machine/user-machine.service';
+import { UsersController } from './users/users.controller';
+import { MachinesController } from './machines/machines.controller';
+import { UsersService } from './users/users.service';
+import { PrismaService } from './prisma/prisma.service';
+import { MachinesService } from './machines/machines.service';
 
 @Module({
   imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule],
@@ -15,7 +22,11 @@ import { MachinesModule } from './machines/machines.module';
       provide: APP_GUARD,
       useClass: AtGuard
     },
+    UserMachineService,
+    UsersService,
+    PrismaService,
+    MachinesService
   ],
-  controllers: [FileController]
+  controllers: [FileController, UserMachineController, UsersController, MachinesController]
 })
 export class AppModule {}

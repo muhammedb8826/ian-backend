@@ -46,6 +46,10 @@ export class MachinesService {
     }
   }
 
+  async findAllMachines() {
+    return this.prisma.machines.findMany()
+  }
+
   async findOne(id: string) {
     return this.prisma.machines.findUnique({
       where: {id}
