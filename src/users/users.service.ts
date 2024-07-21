@@ -72,6 +72,24 @@ export class UsersService {
     }
   }
 
+  async findAllUsers() {
+    const users = await this.prisma.users.findMany();
+    users.forEach(user => {
+      if (user.profile) {
+        user.profile = `/uploads/profile/${user.profile}`;
+      }
+    });
+    return users;
+  }
+
+  async getOperators() {
+    return await this.prisma.users.findMany({
+      where: {
+        roles: 'OPERATOR',
+      },
+    });
+  }
+
   async findOne(id: string) {
     const user = await this.prisma.users.findUnique({
       where: { id: id },

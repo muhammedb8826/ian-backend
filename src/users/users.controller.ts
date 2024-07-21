@@ -41,6 +41,11 @@ export class UsersController {
     return this.usersService.findAll(skip, take);
   }
 
+  @Get('operators')
+  async getOperators() {
+    return this.usersService.getOperators();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
