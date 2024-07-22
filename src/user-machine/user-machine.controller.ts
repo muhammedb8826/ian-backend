@@ -1,5 +1,5 @@
 import { AssignMachineDto } from './dto/AssignMachineDto.dto';
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { UserMachineService } from './user-machine.service';
 
 
@@ -13,8 +13,10 @@ export class UserMachineController {
       }
 
       @Get()
-      findAll() {
-        return this.userMachineService.getUserMachines();
+      findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 5) {
+        const skip = (page - 1) * limit
+        const take = limit
+        return this.userMachineService.getUserMachines(skip, take);
       }
 
       @Get(':id')

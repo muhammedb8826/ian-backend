@@ -53,13 +53,22 @@ export class UserMachineService {
     }
   }
 
-  async getUserMachines() {
-    return this.prisma.userMachine.findMany({
-      include: {
-        user: true,
-        machine: true,
-      },
-    });
+  async getUserMachines(skip: number, take: number) {
+    const [userMachines, total] = await this.prisma.$transaction([
+      this.prisma.userMachine.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        include: {
+          user: true,
+          machine: true,
+        },
+      }),
+      this.prisma.userMachine.count(),
+    ]);
+    return {
+      userMachines,
+      total,
+    };
   }
 
   async getUserMachineById(id: string) {
