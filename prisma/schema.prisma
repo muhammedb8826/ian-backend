@@ -31,7 +31,7 @@ model users {
   is_active  Boolean   @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  machines             UserMachine[]
 }
 
 enum Role {
@@ -55,3 +55,24 @@ enum UserMachinePermission {
   SUBLIMATION
 }
 
+model machines {
+  id        String  @id @default(cuid())
+  name      String @unique
+  status    Boolean @default(true)
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users                UserMachine[]
+}
+
+model UserMachine {
+  id        String  @id @default(cuid())
+  user      users   @relation(fields: [userId], references: [id])
+  userId    String
+  machine   machines @relation(fields: [machineId], references: [id])
+  machineId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, machineId])
+}

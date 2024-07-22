@@ -2,8 +2,9 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { users } from '@prisma/client';
+import { Role, users } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { User } from './entities/user.entity';
 
 @Injectable()
 export class UsersService {
@@ -71,6 +72,34 @@ export class UsersService {
       total
     }
   }
+
+  async findAllUsers() {
+    const users = await this.prisma.users.findMany();
+    users.forEach(user => {
+      if (user.profile) {
+        user.profile = `/uploads/profile/${user.profile}`;
+      }
+    });
+    return users;
+  }
+
+  async getUserByRole(roles?: Role): Promise<User[]> {
+    if (roles) {
+      const users = await this.prisma.users.findMany({
+        where: {
+          roles: roles,
+        },
+      });
+      users.forEach(user => {
+        if (user.profile) {
+          user.profile = `/uploads/profile/${user.profile}`;
+        }
+      });
+      return users;
+    }
+    return [];
+  }
+
 
   async findOne(id: string) {
     const user = await this.prisma.users.findUnique({

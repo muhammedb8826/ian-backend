@@ -5,6 +5,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { Role } from '@prisma/client';
+import { User } from './entities/user.entity';
 
 @Controller('users')
 export class UsersController {
@@ -39,6 +41,14 @@ export class UsersController {
     const skip = (page - 1) * limit;
     const take = limit;
     return this.usersService.findAll(skip, take);
+  }
+
+  @Get('by-role')
+  getUserByRole(@Query('roles') roles?: Role): Promise<User[]> {
+    if (roles) {
+      return this.usersService.getUserByRole(roles);
+    }
+    return this.usersService.findAllUsers();
   }
 
   @Get(':id')
