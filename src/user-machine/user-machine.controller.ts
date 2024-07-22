@@ -1,3 +1,4 @@
+import { AssignMachineDto } from './dto/AssignMachineDto.dto';
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { UserMachineService } from './user-machine.service';
 
@@ -6,7 +7,8 @@ import { UserMachineService } from './user-machine.service';
 export class UserMachineController {
     constructor(private readonly userMachineService: UserMachineService) {}
     @Post()
-    assignMachineToUser(@Body() assignMachineDto: { userId: string, machineId: string[]}) {
+    async assignMachineToUser(@Body() assignMachineDto: AssignMachineDto) {
+      console.log('AssignMachineDto:', assignMachineDto); // Log incoming data
         return this.userMachineService.assignMachineToUser(assignMachineDto.userId, assignMachineDto.machineId);
       }
 
