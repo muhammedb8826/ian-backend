@@ -63,6 +63,7 @@ model machines {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   users                UserMachine[]
+  items                items[]
 }
 
 model UserMachine {
@@ -84,4 +85,41 @@ model services {
   description String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model items {
+  id        String  @id @default(cuid())
+  name      String @unique
+  description String?
+  reorder_level Int
+  initial_stock Int
+  updated_initial_stock Int
+  machineId String
+  machine   machines @relation(fields: [machineId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  unit_attributes UnitAttribute[]
+}
+
+model units {
+  id        String  @id @default(cuid())
+  name      String @unique
+  data_type String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  unit_attributes UnitAttribute[]
+}
+
+model UnitAttribute {
+  id        String  @id @default(cuid())
+  itemId   String
+  unitId    String
+  value     String
+  item     items   @relation(fields: [itemId], references: [id])
+  unit      units   @relation(fields: [unitId], references: [id])
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([itemId, unitId])
 }
