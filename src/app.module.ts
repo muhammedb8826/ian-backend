@@ -16,9 +16,10 @@ import { PrismaService } from './prisma/prisma.service';
 import { MachinesService } from './machines/machines.service';
 import { ServicesModule } from './services/services.module';
 import { ItemsModule } from './items/items.module';
+import { UnitsModule } from './units/units.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitsModule],
   providers: [
     {
       provide: APP_GUARD,
