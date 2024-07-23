@@ -17,9 +17,10 @@ import { MachinesService } from './machines/machines.service';
 import { ServicesModule } from './services/services.module';
 import { ItemsModule } from './items/items.module';
 import { UnitsModule } from './units/units.module';
+import { UnitAttributeModule } from './unit-attribute/unit-attribute.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitsModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitsModule, UnitAttributeModule],
   providers: [
     {
       provide: APP_GUARD,
