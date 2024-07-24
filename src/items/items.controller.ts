@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ItemsService } from './items.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
@@ -13,8 +13,15 @@ export class ItemsController {
   }
 
   @Get()
-  findAll() {
-    return this.itemsService.findAll();
+  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 5) {
+    const skip = (page - 1) * limit
+    const take = limit
+    return this.itemsService.findAll(skip, take);
+  }
+
+  @Get()
+  findAllItems() {
+    return this.itemsService.findAllItems();
   }
 
   @Get(':id')

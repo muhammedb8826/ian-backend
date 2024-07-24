@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ItemsService {
@@ -12,7 +13,24 @@ export class ItemsService {
     })
   }
 
-  async findAll() {
+  async findAll(skip: number, take: number) {
+   const [items, total] = await this.prisma.$transaction([
+      this.prisma.items.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      this.prisma.items.count()
+    ])
+    return {
+      items,
+      total
+    }
+  }
+
+  async findAllItems() {
     return this.prisma.items.findMany()
   }
 
@@ -29,9 +47,19 @@ export class ItemsService {
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
+
+    const updateData: Prisma.itemsUpdateInput = {
+      name: updateItemDto.name,
+      description: updateItemDto.description,
+      reorder_level: updateItemDto.reorder_level,
+      initial_stock: updateItemDto.initial_stock,
+      updated_initial_stock: updateItemDto.updated_initial_stock,
+      machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
+    };
+
     return this.prisma.items.update({
       where: { id },
-      data: updateItemDto,
+      data: updateData,
     });
   }
 
@@ -40,6 +68,13 @@ export class ItemsService {
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
-    return this.prisma.items.delete({ where: { id } });
+    try {
+      return await this.prisma.items.delete({ where: { id } });
+    } catch (error) {
+      if (error.code === 'P2003') { // P2003 is Prisma's foreign key constraint error code
+        throw new BadRequestException('Cannot delete item due to existing dependencies. Please remove associated data first.');
+      }
+      throw error; // Rethrow other errors
+    }
   }
 }
