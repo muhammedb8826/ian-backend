@@ -7,7 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UnitAttributeService {
   constructor(private readonly prisma: PrismaService) {}
   async create(createUnitAttributeDto: CreateUnitAttributeDto) {
-    const { itemId, unitId, value } = createUnitAttributeDto;
+    const { itemId, unitId, value, attribute, attribute_value } = createUnitAttributeDto;
 
     // Check if a record with the same itemId and unitId already exists
     const existingRecord = await this.prisma.unitAttribute.findUnique({
@@ -28,6 +28,8 @@ export class UnitAttributeService {
         itemId,
         unitId,
         value,
+        attribute,
+        attribute_value,
       },
     });
   }

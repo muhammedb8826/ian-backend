@@ -104,7 +104,7 @@ model items {
 model units {
   id        String  @id @default(cuid())
   name      String @unique
-  data_type String
+  symbol String 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   unit_attributes UnitAttribute[]
@@ -115,6 +115,8 @@ model UnitAttribute {
   itemId   String
   unitId    String
   value     String
+  attribute String
+  attribute_value String
   item     items   @relation(fields: [itemId], references: [id])
   unit      units   @relation(fields: [unitId], references: [id])
  

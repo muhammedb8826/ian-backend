@@ -7,5 +7,5 @@ export class CreateUnitDto {
 
     @IsString()
     @IsNotEmpty()
-    data_type: string;
+    symbol: string;
 }

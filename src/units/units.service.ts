@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -13,7 +13,24 @@ export class UnitsService {
     })
   }
 
-  async findAll() {
+  async findAll(skip: number, take: number) {
+    const [units, total] = await this.prisma.$transaction([
+      this.prisma.units.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      this.prisma.units.count()
+    ])
+    return {
+      units,
+      total
+    }
+  }
+
+  async findAllUnits() {
     return this.prisma.units.findMany()
   }
 
@@ -37,10 +54,19 @@ export class UnitsService {
   }
 
   async remove(id: string) {
+    // Check if the unit exists
     const unit = await this.prisma.units.findUnique({ where: { id } });
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
-    return this.prisma.units.delete({ where: { id } });
+
+    try {
+      return await this.prisma.units.delete({ where: { id } });
+    } catch (error) {
+      if (error.code === 'P2003') {
+        throw new BadRequestException('Cannot delete unit due to existing dependencies. Please remove associated data first.');
+      }
+      throw error;
+    }
   }
 }
