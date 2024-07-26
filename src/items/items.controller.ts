@@ -19,7 +19,7 @@ export class ItemsController {
     return this.itemsService.findAll(skip, take);
   }
 
-  @Get()
+  @Get('all')
   findAllItems() {
     return this.itemsService.findAllItems();
   }
