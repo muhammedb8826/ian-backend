@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateUnitAttributeDto } from './dto/create-unit-attribute.dto';
 import { UpdateUnitAttributeDto } from './dto/update-unit-attribute.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -7,34 +7,56 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UnitAttributeService {
   constructor(private readonly prisma: PrismaService) {}
   async create(createUnitAttributeDto: CreateUnitAttributeDto) {
-    const { itemId, unitId, value, attribute, attribute_value } = createUnitAttributeDto;
+    const { itemId, unitId, quantity, attribute, attribute_value } = createUnitAttributeDto;
+    try {
+      const existingRecord = await this.prisma.unitAttribute.findUnique({
+        where: {
+          itemId_unitId: {
+            itemId,
+            unitId,
+          },
+        },
+      });
 
-    // Check if a record with the same itemId and unitId already exists
-    const existingRecord = await this.prisma.unitAttribute.findUnique({
-      where: {
-        itemId_unitId: {
+      if (existingRecord) {
+        throw new ConflictException('UnitAttribute with the given itemId and unitId already exists');
+      }
+
+      return await this.prisma.unitAttribute.create({
+        data: {
           itemId,
           unitId,
+          quantity,
+          attribute,
+          attribute_value,
         },
-      },
-    });
-
-    if (existingRecord) {
-      throw new ConflictException('UnitAttribute with the given itemId and unitId already exists');
+      });
+    } catch (error) {
+      if (error.code === 'P2003') { // Prisma error code for foreign key constraint violation
+        throw new ConflictException('Foreign key constraint failed. Please ensure the itemId and unitId are valid.');
+      }
+      throw new InternalServerErrorException('An unexpected error occurred.');
     }
-
-    return this.prisma.unitAttribute.create({
-      data: {
-        itemId,
-        unitId,
-        value,
-        attribute,
-        attribute_value,
-      },
-    });
   }
 
-  async findAll() {
+  async findAll(skip: number, take: number) {
+    const [unitAttributes, total] = await this.prisma.$transaction([
+      this.prisma.unitAttribute.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.unitAttribute.count(),
+    ]);
+    return {
+      unitAttributes,
+      total,
+    };
+  }
+
+  async findAllUnitAttributes() {
     return this.prisma.unitAttribute.findMany();
   }
 

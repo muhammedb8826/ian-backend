@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,9 +8,16 @@ import { Prisma } from '@prisma/client';
 export class ItemsService {
   constructor(private prisma: PrismaService) {}
   async create(createItemDto: CreateItemDto) {
-    return this.prisma.items.create({
-      data: createItemDto
-    })
+    try {
+      return await this.prisma.items.create({
+        data: createItemDto,
+      });
+    } catch (error) {
+      if (error.code === 'P2003') { // Prisma error code for foreign key constraint violation
+        throw new ConflictException('Foreign key constraint failed. Please ensure the machineId is valid.');
+      }
+      throw error;
+    }
   }
 
   async findAll(skip: number, take: number) {

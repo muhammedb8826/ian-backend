@@ -114,7 +114,7 @@ model UnitAttribute {
   id        String  @id @default(cuid())
   itemId   String
   unitId    String
-  value     String
+  quantity     Int
   attribute String
   attribute_value String
   item     items   @relation(fields: [itemId], references: [id])

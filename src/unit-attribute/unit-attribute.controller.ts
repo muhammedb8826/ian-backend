@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { UnitAttributeService } from './unit-attribute.service';
 import { CreateUnitAttributeDto } from './dto/create-unit-attribute.dto';
 import { UpdateUnitAttributeDto } from './dto/update-unit-attribute.dto';
@@ -13,8 +13,15 @@ export class UnitAttributeController {
   }
 
   @Get()
-  findAll() {
-    return this.unitAttributeService.findAll();
+  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10) {
+    const skip = (page - 1) * limit
+    const take = limit
+    return this.unitAttributeService.findAll(skip, take);
+  }
+
+  @Get('all')
+  findAllUnitAttributes() {
+    return this.unitAttributeService.findAllUnitAttributes();
   }
 
   @Get(':id')

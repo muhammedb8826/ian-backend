@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsInt, IsNotEmpty, IsString } from "class-validator";
 
 export class CreateUnitAttributeDto {
   @IsString()
@@ -7,8 +7,9 @@ export class CreateUnitAttributeDto {
   @IsString()
   unitId: string;
 
-  @IsString()
-  value: string;
+  @IsNotEmpty()
+  @IsInt()
+  quantity: number;
 
   @IsString()
   @IsNotEmpty()

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,8 +8,21 @@ export class UnitsService {
   constructor(private readonly prisma: PrismaService) {}
 
  async create(createUnitDto: CreateUnitDto) {
-    return this.prisma.units.create({
-      data: createUnitDto
+    const existingByName = await this.prisma.units.findUnique({
+      where: {
+        name: createUnitDto.name
+      }
+    })
+
+    if(existingByName) {
+      throw new ConflictException('Unit already exists')
+    }
+
+    return await this.prisma.units.create({
+      data: {
+        name: createUnitDto.name,
+        symbol: createUnitDto.symbol,
+      }
     })
   }
 
