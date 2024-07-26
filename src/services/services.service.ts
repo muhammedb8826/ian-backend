@@ -8,9 +8,10 @@ import { services } from '@prisma/client';
 export class ServicesService {
   constructor(private prisma: PrismaService){}
   async create(createServiceDto: CreateServiceDto): Promise<services> {
+    const normalizedAttribute = createServiceDto.name.toLowerCase();
     const existingByName = await this.prisma.services.findUnique({
       where: {
-        name: createServiceDto.name
+        name: normalizedAttribute
       }
     })
 

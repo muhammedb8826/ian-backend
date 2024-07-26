@@ -8,9 +8,10 @@ export class UnitsService {
   constructor(private readonly prisma: PrismaService) {}
 
  async create(createUnitDto: CreateUnitDto) {
+   const normalizedAttribute = createUnitDto.name.toLowerCase();
     const existingByName = await this.prisma.units.findUnique({
       where: {
-        name: createUnitDto.name
+        name: normalizedAttribute
       }
     })
 

@@ -115,13 +115,11 @@ model UnitAttribute {
   itemId   String
   unitId    String
   quantity     Int
-  attribute String
+  attribute String @unique
   attribute_value String
   item     items   @relation(fields: [itemId], references: [id])
   unit      units   @relation(fields: [unitId], references: [id])
  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([itemId, unitId])
 }
