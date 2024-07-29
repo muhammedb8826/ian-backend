@@ -98,28 +98,37 @@ model items {
   machine   machines @relation(fields: [machineId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  unit_attributes UnitAttribute[]
 }
 
-model units {
+model UnitCategory {
   id        String  @id @default(cuid())
   name      String @unique
-  symbol String 
+  description String 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  unit_attributes UnitAttribute[]
+
+  units UOM[]
 }
 
-model UnitAttribute {
+model UOM {
   id        String  @id @default(cuid())
-  itemId   String
-  unitId    String
-  quantity     Int
-  attribute String @unique
-  attribute_value String
-  item     items   @relation(fields: [itemId], references: [id])
-  unit      units   @relation(fields: [unitId], references: [id])
- 
+  name            String
+  abbreviation    String
+  conversionRate  Float
+  baseUnit       Boolean @default(false)
+  unitCategoryId  String
+  unitCategory    UnitCategory  @relation(fields: [unitCategoryId], references: [id])
+  attributes      UOMAttribute[] // One-to-many relationship with UOMAttribute
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UOMAttribute {
+  id       Int     @id @default(autoincrement())
+  name      String  
+  value    String  
+  uomId    String
+  uom      UOM     @relation(fields: [uomId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

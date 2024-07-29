@@ -35,6 +35,39 @@ async function main() {
   } else {
     console.log('User already exists, skipping creation');
   }
+
+  const areaCategory = await prisma.unitCategory.create({
+    data: {
+      name: 'Area',
+      description: 'Units of area measurement',
+    },
+  });
+
+  const squareMeter = await prisma.uOM.create({
+    data: {
+      name: 'Square Meter',
+      abbreviation: 'm²',
+      conversionRate: 1.0,
+      baseUnit: true,
+      unitCategoryId: areaCategory.id,
+    },
+  });
+
+  await prisma.uOMAttribute.createMany({
+    data: [
+      {
+        name: 'Width',
+        value: '1', // Default value, can be set according to specific cases
+        uomId: squareMeter.id,
+      },
+      {
+        name: 'Length',
+        value: '1', // Default value, can be set according to specific cases
+        uomId: squareMeter.id,
+      },
+    ],
+  });
+
 }
 
 main()
