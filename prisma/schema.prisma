@@ -112,7 +112,7 @@ model UnitCategory {
 
 model UOM {
   id        String  @id @default(cuid())
-  name            String
+  name            String @unique
   abbreviation    String
   conversionRate  Float
   baseUnit       Boolean @default(false)

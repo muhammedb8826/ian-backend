@@ -49,7 +49,7 @@ export class UnitCategoryService {
 
   async findOne(id: string) {
     return this.prisma.unitCategory.findUnique({
-      where: {id}
+      where: {id},
     });
   }
 

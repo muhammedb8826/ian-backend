@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { UomService } from './uom.service';
 import { CreateUomDto } from './dto/create-uom.dto';
 import { UpdateUomDto } from './dto/update-uom.dto';
@@ -13,8 +13,8 @@ export class UomController {
   }
 
   @Get()
-  findAll() {
-    return this.uomService.findAll();
+  findAll(@Query('categoryId') categoryId?: string) {
+    return this.uomService.findAll(categoryId);
   }
 
   @Get(':id')

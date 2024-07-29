@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUomDto } from './dto/create-uom.dto';
 import { UpdateUomDto } from './dto/update-uom.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -7,11 +7,25 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UomService {
   constructor(private prisma: PrismaService){}
   async create(createUomDto: CreateUomDto) {
+    const existingByName = await this.prisma.uOM.findUnique({
+      where: {
+        name: createUomDto.name
+      }
+    })
+
+    if(existingByName) {
+      throw new ConflictException('UOM already exists')
+    }
+
+    const conversionRate = typeof createUomDto.conversionRate === 'string'
+    ? parseFloat(createUomDto.conversionRate)
+    : createUomDto.conversionRate;
+
     return this.prisma.uOM.create({
       data: {
         name: createUomDto.name,
         abbreviation: createUomDto.abbreviation,
-        conversionRate: createUomDto.conversionRate,
+        conversionRate: conversionRate,
         baseUnit: createUomDto.baseUnit,
         unitCategoryId: createUomDto.unitCategoryId,
 
@@ -20,22 +34,29 @@ export class UomService {
   }
 
   async findAll(categoryId?: string) {
-    if (categoryId) {
-      const categoryExists = await this.prisma.unitCategory.findUnique({
-        where: { id: categoryId },
-      });
-
-      if (!categoryExists) {
-        return []; // Return an empty array if the category doesn't exist
-      }
+    // If no categoryId is provided, return an empty array
+    if (!categoryId) {
+      return [];
     }
+  
+    // Check if the category with the provided id exists
+    const categoryExists = await this.prisma.unitCategory.findUnique({
+      where: { id: categoryId },
+    });
 
-    return this.prisma.uOM.findMany({
-      where: categoryId ? { unitCategoryId: categoryId } : {},
+    // If the category does not exist, return an empty array
+    if (!categoryExists) {
+      return [];
+    }
+  
+    // Return uOM instances belonging to the provided categoryId
+    const results =  this.prisma.uOM.findMany({
+      where: { unitCategoryId: categoryId },
       include: {
-        unitCategory: true
-      }
-    })
+        unitCategory: true,
+      },
+    });
+    return results;
   }
 
   async findOne(id: string) {
@@ -45,12 +66,24 @@ export class UomService {
   }
 
   async update(id: string, updateUomDto: UpdateUomDto) {
+    const existingUnit = await this.prisma.uOM.findUnique({
+      where: {
+        id: updateUomDto.id
+      }
+    });
+  
+    if (!existingUnit) {
+      throw new NotFoundException('UOM not found');
+    }
+    const conversionRate = typeof updateUomDto.conversionRate === 'string'
+    ? parseFloat(updateUomDto.conversionRate)
+    : updateUomDto.conversionRate;
     return this.prisma.uOM.update({
       where: {id},
       data: {
         name: updateUomDto.name,
         abbreviation: updateUomDto.abbreviation,
-        conversionRate: updateUomDto.conversionRate,
+        conversionRate: conversionRate,
         baseUnit: updateUomDto.baseUnit,
         unitCategoryId: updateUomDto.unitCategoryId,
       }
