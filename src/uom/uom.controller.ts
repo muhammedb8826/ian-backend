@@ -17,6 +17,11 @@ export class UomController {
     return this.uomService.findAll(categoryId);
   }
 
+  @Get('all')
+  findAllUoms() {
+    return this.uomService.findAllUoms();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.uomService.findOne(id);

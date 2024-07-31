@@ -62,6 +62,14 @@ export class UomService {
     return results;
   }
 
+  async findAllUoms() {
+    return this.prisma.uOM.findMany({
+      include: {
+        unitCategory: true,
+      },
+    });
+  }
+
   async findOne(id: string) {
     return this.prisma.uOM.findUnique({
       where: {id}

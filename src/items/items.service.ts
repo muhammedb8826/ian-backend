@@ -8,12 +8,24 @@ import { Prisma } from '@prisma/client';
 export class ItemsService {
   constructor(private prisma: PrismaService) {}
   async create(createItemDto: CreateItemDto) {
+    if (!createItemDto.machineId) {
+      throw new ConflictException('Machine ID is required.');
+    }
+
     try {
+      const machineExists = await this.prisma.machines.findUnique({
+        where: { id: createItemDto.machineId },
+      });
+
+      if (!machineExists) {
+        throw new ConflictException('Machine ID does not exist.');
+      }
+
       return await this.prisma.items.create({
         data: createItemDto,
       });
     } catch (error) {
-      if (error.code === 'P2003') { // Prisma error code for foreign key constraint violation
+      if (error.code === 'P2003') {
         throw new ConflictException('Foreign key constraint failed. Please ensure the machineId is valid.');
       }
       throw error;

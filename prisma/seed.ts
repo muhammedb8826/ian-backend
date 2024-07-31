@@ -34,31 +34,49 @@ async function main() {
     console.log('User already exists, skipping creation');
   }
 
-  const areaCategory = await prisma.unitCategory.create({
-    data: {
-      name: 'Area',
-      description: 'Units of area measurement',
-    },
+  const existingCategory = await prisma.unitCategory.findUnique({
+    where: { name: 'Area' } // Replace 'Area' with the actual name you're trying to insert
   });
 
-  const squareMeter = await prisma.uOM.create({
-    data: {
-      name: 'Square Meter',
-      abbreviation: 'm²',
-      conversionRate: 1.0,
-      baseUnit: true,
-      unitCategoryId: areaCategory.id,
-    },
-  });
-
-  await prisma.uOMAttribute.createMany({
-    data: [
-      {
-        width: 1,
-        height: 1,
-        uomId: squareMeter.id,
+  if (existingCategory) {
+    console.log('UnitCategory already exists, skipping creation');
+  } else {
+    const areaCategory = await prisma.unitCategory.create({
+      data: {
+        name: 'Area',
+        description: 'Units of area measurement',
       },
-    ],
+    });
+
+    const squareMeter = await prisma.uOM.create({
+      data: {
+        name: 'Square Meter',
+        abbreviation: 'm²',
+        conversionRate: 1.0,
+        baseUnit: true,
+        unitCategoryId: areaCategory.id,
+      },
+    });
+  
+    await prisma.uOMAttribute.createMany({
+      data: [
+        {
+          width: 1,
+          height: 1,
+          uomId: squareMeter.id,
+        },
+      ],
+    });
+    
+    console.log('Created UnitCategory:', areaCategory);
+  }
+
+  await prisma.machines.create({
+    data: {
+      name: 'All',
+      description: 'All in one machine',
+      status: true,
+    },
   });
 
 }
