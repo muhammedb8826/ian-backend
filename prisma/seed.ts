@@ -13,7 +13,7 @@ async function main() {
   });
 
   if (!existingUser) {
-    const user = await prisma.users.create({
+    await prisma.users.create({
       data: {
         first_name: "IAN",
         middle_name: "PLC",
@@ -30,8 +30,6 @@ async function main() {
         is_active: true,
       },
     });
-
-    console.log({ user });
   } else {
     console.log('User already exists, skipping creation');
   }
@@ -56,13 +54,8 @@ async function main() {
   await prisma.uOMAttribute.createMany({
     data: [
       {
-        name: 'Width',
-        value: '1', // Default value, can be set according to specific cases
-        uomId: squareMeter.id,
-      },
-      {
-        name: 'Length',
-        value: '1', // Default value, can be set according to specific cases
+        width: 1,
+        height: 1,
         uomId: squareMeter.id,
       },
     ],

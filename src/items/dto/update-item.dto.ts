@@ -11,4 +11,12 @@ export class UpdateItemDto extends PartialType(CreateItemDto) {
 
     @IsInt()
     updated_initial_stock: number;
+
+    can_be_sold?: boolean;
+    can_be_purchased?: boolean;
+
+    purchaseUnitOfMeasureId?: string;
+    unitOfMeasureId?: string;
+    purchase_price?: number;
+    selling_price?: number;
 }

@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsInt, IsOptional, IsString } from "class-validator";
 
 export class CreateItemDto {
     @IsString()
@@ -16,6 +16,21 @@ export class CreateItemDto {
 
     @IsInt()
     updated_initial_stock: number;
+
+    @IsBoolean()
+    can_be_sold: boolean;
+
+    @IsBoolean()
+    can_be_purchased: boolean;
+
+    purchase_price: number;
+    selling_price: number;
+
+    @IsString()
+    unitOfMeasureId: string;
+
+    @IsString()
+    purchaseUnitOfMeasureId
 
     @IsString()
     machineId: string;

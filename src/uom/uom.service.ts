@@ -7,13 +7,16 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UomService {
   constructor(private prisma: PrismaService){}
   async create(createUomDto: CreateUomDto) {
-    const existingByName = await this.prisma.uOM.findUnique({
+    const existingByNameOrAbbreviation = await this.prisma.uOM.findFirst({
       where: {
-        name: createUomDto.name
+        OR: [
+          { name: createUomDto.name },
+          { abbreviation: createUomDto.abbreviation }
+        ]
       }
-    })
+    });
 
-    if(existingByName) {
+    if(existingByNameOrAbbreviation) {
       throw new ConflictException('UOM already exists')
     }
 
@@ -66,6 +69,20 @@ export class UomService {
   }
 
   async update(id: string, updateUomDto: UpdateUomDto) {
+
+    const existingByNameOrAbbreviation = await this.prisma.uOM.findFirst({
+      where: {
+        OR: [
+          { name: updateUomDto.name },
+          { abbreviation: updateUomDto.abbreviation }
+        ]
+      }
+    });
+
+    if(existingByNameOrAbbreviation) {
+      throw new ConflictException('UOM already exists')
+    }
+
     const existingUnit = await this.prisma.uOM.findUnique({
       where: {
         id: updateUomDto.id

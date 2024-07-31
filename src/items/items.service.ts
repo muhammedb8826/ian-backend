@@ -61,6 +61,12 @@ export class ItemsService {
       reorder_level: updateItemDto.reorder_level,
       initial_stock: updateItemDto.initial_stock,
       updated_initial_stock: updateItemDto.updated_initial_stock,
+      can_be_sold: updateItemDto.can_be_sold,
+      can_be_purchased: updateItemDto.can_be_purchased,
+      purchase_price: updateItemDto.purchase_price,
+      selling_price: updateItemDto.selling_price,
+      unitOfMeasure: updateItemDto.unitOfMeasureId ? { connect: { id: updateItemDto.unitOfMeasureId } } : undefined,
+      purchaseUnitOfMeasure: updateItemDto.purchaseUnitOfMeasureId ? { connect: { id: updateItemDto.purchaseUnitOfMeasureId } } : undefined,
       machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
     };
 

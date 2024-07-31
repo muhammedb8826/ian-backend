@@ -94,8 +94,16 @@ model items {
   reorder_level Int
   initial_stock Int
   updated_initial_stock Int
+  can_be_sold Boolean @default(true)
+  can_be_purchased Boolean @default(true)
+  purchase_price Float
+  selling_price Float
+  unitOfMeasureId        String
+  purchaseUnitOfMeasureId String
   machineId String
   machine   machines @relation(fields: [machineId], references: [id])
+  unitOfMeasure          UOM     @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
+  purchaseUnitOfMeasure  UOM     @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -113,20 +121,22 @@ model UnitCategory {
 model UOM {
   id        String  @id @default(cuid())
   name            String @unique
-  abbreviation    String
+  abbreviation    String @unique
   conversionRate  Float
   baseUnit       Boolean @default(false)
   unitCategoryId  String
   unitCategory    UnitCategory  @relation(fields: [unitCategoryId], references: [id])
   attributes      UOMAttribute[] // One-to-many relationship with UOMAttribute
+  items               items[]       @relation("ItemUnitOfMeasure")
+  purchaseItems       items[]       @relation("ItemPurchaseUnitOfMeasure")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model UOMAttribute {
-  id       Int     @id @default(autoincrement())
-  name      String  
-  value    String  
+  id       String  @id @default(cuid())
+  width      Float  @unique
+  height    Float  @unique
   uomId    String
   uom      UOM     @relation(fields: [uomId], references: [id])
   createdAt DateTime @default(now())
