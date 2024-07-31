@@ -15,9 +15,13 @@ import { UsersService } from './users/users.service';
 import { PrismaService } from './prisma/prisma.service';
 import { MachinesService } from './machines/machines.service';
 import { ServicesModule } from './services/services.module';
+import { ItemsModule } from './items/items.module';
+import { UnitCategoryModule } from './unit-category/unit-category.module';
+import { UomModule } from './uom/uom.module';
+import { UnitAttributeModule } from './unit-attribute/unit-attribute.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, UnitAttributeModule],
   providers: [
     {
       provide: APP_GUARD,

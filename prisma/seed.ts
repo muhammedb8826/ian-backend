@@ -13,7 +13,7 @@ async function main() {
   });
 
   if (!existingUser) {
-    const user = await prisma.users.create({
+    await prisma.users.create({
       data: {
         first_name: "IAN",
         middle_name: "PLC",
@@ -30,11 +30,37 @@ async function main() {
         is_active: true,
       },
     });
-
-    console.log({ user });
   } else {
     console.log('User already exists, skipping creation');
   }
+
+  const areaCategory = await prisma.unitCategory.create({
+    data: {
+      name: 'Area',
+      description: 'Units of area measurement',
+    },
+  });
+
+  const squareMeter = await prisma.uOM.create({
+    data: {
+      name: 'Square Meter',
+      abbreviation: 'm²',
+      conversionRate: 1.0,
+      baseUnit: true,
+      unitCategoryId: areaCategory.id,
+    },
+  });
+
+  await prisma.uOMAttribute.createMany({
+    data: [
+      {
+        width: 1,
+        height: 1,
+        uomId: squareMeter.id,
+      },
+    ],
+  });
+
 }
 
 main()
