@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,24 +8,114 @@ datasource db {
 }
 
 model users {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  confirm_password String
-  passwordRT String?
-  first_name      String?
-  middle_name     String?
-  last_name       String?
-  gender    String    @default("MALE")
-  phone String @unique
-  address   String
-  roles     Role      @default(ADMIN)
-  profile String?
+  id                  String                  @id @default(cuid())
+  email               String                  @unique
+  password            String
+  passwordRT          String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  address             String
+  first_name          String?
+  gender              String                  @default("MALE")
+  last_name           String?
+  middle_name         String?
+  phone               String                  @unique
+  profile             String?
+  roles               Role                    @default(ADMIN)
+  confirm_password    String
+  is_active           Boolean                 @default(true)
   machine_permissions UserMachinePermission[]
-  is_active  Boolean   @default(true)
+  machines            UserMachine[]
+}
+
+model machines {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  status      Boolean       @default(true)
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  users       UserMachine[]
+  items       items[]
+}
+
+model UserMachine {
+  id        String   @id @default(cuid())
+  userId    String
+  machineId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  machines             UserMachine[]
+  machine   machines @relation(fields: [machineId], references: [id])
+  user      users    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, machineId])
+}
+
+model services {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  status      Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model items {
+  id                      String   @id @default(cuid())
+  name                    String   @unique
+  description             String?
+  reorder_level           Int
+  initial_stock           Int
+  updated_initial_stock   Int
+  machineId               String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  can_be_purchased        Boolean  @default(true)
+  can_be_sold             Boolean  @default(true)
+  purchaseUnitOfMeasureId String
+  purchase_price          Float
+  selling_price           Float
+  unitOfMeasureId         String
+  machine                 machines @relation(fields: [machineId], references: [id])
+  purchaseUnitOfMeasure   UOM      @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
+  unitOfMeasure           UOM      @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
+
+  attributes            Attribute[]
+}
+
+model UnitCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  units       UOM[]
+}
+
+model UOM {
+  id             String         @id @default(cuid())
+  name           String         @unique
+  abbreviation   String         @unique
+  conversionRate Float
+  baseUnit       Boolean        @default(false)
+  unitCategoryId String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  unitCategory   UnitCategory   @relation(fields: [unitCategoryId], references: [id])
+  purchaseItems  items[]        @relation("ItemPurchaseUnitOfMeasure")
+  items          items[]        @relation("ItemUnitOfMeasure")
+}
+
+model Attribute {
+  id        String   @id @default(cuid())
+  name      String
+  value     String
+  itemId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items      items     @relation(fields: [itemId], references: [id])
+
+  @@unique([name, itemId])
 }
 
 enum Role {
@@ -53,92 +137,4 @@ enum UserMachinePermission {
   HEAT_PRESS
   VINYL
   SUBLIMATION
-}
-
-model machines {
-  id        String  @id @default(cuid())
-  name      String @unique
-  status    Boolean @default(true)
-  description String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users                UserMachine[]
-  items                items[]
-}
-
-model UserMachine {
-  id        String  @id @default(cuid())
-  user      users   @relation(fields: [userId], references: [id])
-  userId    String
-  machine   machines @relation(fields: [machineId], references: [id])
-  machineId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, machineId])
-}
-
-model services {
-  id        String  @id @default(cuid())
-  name      String @unique
-  status    Boolean @default(true)
-  description String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model items {
-  id        String  @id @default(cuid())
-  name      String @unique
-  description String?
-  reorder_level Int
-  initial_stock Int
-  updated_initial_stock Int
-  can_be_sold Boolean @default(true)
-  can_be_purchased Boolean @default(true)
-  purchase_price Float
-  selling_price Float
-  unitOfMeasureId        String
-  purchaseUnitOfMeasureId String
-  machineId String
-  machine   machines @relation(fields: [machineId], references: [id])
-  unitOfMeasure          UOM     @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
-  purchaseUnitOfMeasure  UOM     @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model UnitCategory {
-  id        String  @id @default(cuid())
-  name      String @unique
-  description String 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  units UOM[]
-}
-
-model UOM {
-  id        String  @id @default(cuid())
-  name            String @unique
-  abbreviation    String @unique
-  conversionRate  Float
-  baseUnit       Boolean @default(false)
-  unitCategoryId  String
-  unitCategory    UnitCategory  @relation(fields: [unitCategoryId], references: [id])
-  attributes      UOMAttribute[] // One-to-many relationship with UOMAttribute
-  items               items[]       @relation("ItemUnitOfMeasure")
-  purchaseItems       items[]       @relation("ItemPurchaseUnitOfMeasure")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model UOMAttribute {
-  id       String  @id @default(cuid())
-  width      Float  @unique
-  height    Float  @unique
-  uomId    String
-  uom      UOM     @relation(fields: [uomId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

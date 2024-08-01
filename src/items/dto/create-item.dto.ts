@@ -26,9 +26,11 @@ export class CreateItemDto {
     purchase_price: number;
     selling_price: number;
 
+    @IsOptional()
     @IsString()
     unitOfMeasureId: string;
-
+   
+    @IsOptional()
     @IsString()
     purchaseUnitOfMeasureId
 
