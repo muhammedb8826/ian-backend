@@ -28,11 +28,11 @@ export class CreateItemDto {
 
     @IsOptional()
     @IsString()
-    unitOfMeasureId: string;
+    unitOfMeasureId?: string;
    
     @IsOptional()
     @IsString()
-    purchaseUnitOfMeasureId
+    purchaseUnitOfMeasureId?: string;
 
     @IsString()
     machineId: string;

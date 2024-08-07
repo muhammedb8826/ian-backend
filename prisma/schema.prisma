@@ -72,13 +72,13 @@ model items {
   updatedAt               DateTime @updatedAt
   can_be_purchased        Boolean  @default(true)
   can_be_sold             Boolean  @default(true)
-  purchaseUnitOfMeasureId String
   purchase_price          Float
   selling_price           Float
-  unitOfMeasureId         String
+  purchaseUnitOfMeasureId String?
+  unitOfMeasureId         String?
   machine                 machines @relation(fields: [machineId], references: [id])
-  purchaseUnitOfMeasure   UOM      @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
-  unitOfMeasure           UOM      @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
+  purchaseUnitOfMeasure   UOM?      @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
+  unitOfMeasure           UOM?     @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
 
   attributes            Attribute[]
 }
