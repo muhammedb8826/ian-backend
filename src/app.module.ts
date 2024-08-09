@@ -18,8 +18,9 @@ import { ServicesModule } from './services/services.module';
 import { ItemsModule } from './items/items.module';
 import { UnitCategoryModule } from './unit-category/unit-category.module';
 import { UomModule } from './uom/uom.module';
+import { VendorsModule } from './vendors/vendors.module';
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule],
   providers: [
     {
       provide: APP_GUARD,
