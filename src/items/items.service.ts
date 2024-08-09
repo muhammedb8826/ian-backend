@@ -47,22 +47,34 @@ export class ItemsService {
     }
   }
 
-
-  async findAll(skip: number, take: number) {
-   const [items, total] = await this.prisma.$transaction([
+  async findAll(skip: number, take: number, search?: string) {
+    const [items, total] = await this.prisma.$transaction([
       this.prisma.items.findMany({
         skip: Number(skip),
         take: Number(take),
+        where: search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        } : {},
         orderBy: {
           createdAt: 'desc'
         }
       }),
-      this.prisma.items.count()
-    ])
+      this.prisma.items.count({
+        where: search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        } : {}
+      })
+    ]);
     return {
       items,
       total
-    }
+    };
   }
 
   async findAllItems() {
