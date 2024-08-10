@@ -69,8 +69,21 @@ export class VendorsService {
     }
   }
 
-  async findAllVendors() {
+  async findAllVendors(search?: string) {
+    console.log(search);
+    
     return this.prisma.vendors.findMany({
+      where: search 
+      ? {
+        OR: [
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { address: { contains: search, mode: 'insensitive' } },
+          { company: { contains: search, mode: 'insensitive' } },
+        ],
+      }
+    : {},
       orderBy: {
         createdAt: 'desc'
       }
