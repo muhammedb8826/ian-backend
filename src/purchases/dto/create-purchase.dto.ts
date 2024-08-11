@@ -1,31 +1,32 @@
 import { Type } from "class-transformer";
 import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { CreatePurchaseItemDto } from "src/purchase-items/dto/create-purchase-item.dto";
 
-class CreatePurchaseItemDto {
-    @IsString()
-    @IsNotEmpty()
-    itemId: string;
+// class CreatePurchaseItemDto {
+//     @IsString()
+//     @IsNotEmpty()
+//     itemId: string;
   
-    @IsNumber()
-    @IsNotEmpty()
-    quantity: number;
+//     @IsNumber()
+//     @IsNotEmpty()
+//     quantity: number;
 
-    @IsNumber()
-    @IsNotEmpty()
-    unitPrice: number;
+//     @IsNumber()
+//     @IsNotEmpty()
+//     unitPrice: number;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+//     @IsOptional()
+//     @IsString()
+//     description?: string;
 
-    @IsOptional()
-    @IsString()
-    status?: string;
+//     @IsOptional()
+//     @IsString()
+//     status?: string;
   
-    @IsNumber()
-    @IsNotEmpty()
-    amount: number;
-  }
+//     @IsNumber()
+//     @IsNotEmpty()
+//     amount: number;
+//   }
 export class CreatePurchaseDto {
     @IsString()
     @IsNotEmpty()

@@ -20,8 +20,9 @@ import { UnitCategoryModule } from './unit-category/unit-category.module';
 import { UomModule } from './uom/uom.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { PurchasesModule } from './purchases/purchases.module';
+import { PurchaseItemsModule } from './purchase-items/purchase-items.module';
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule],
   providers: [
     {
       provide: APP_GUARD,
