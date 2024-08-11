@@ -1,24 +1,29 @@
 import { Type } from "class-transformer";
-import { IsArray, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
 
 class CreatePurchaseItemDto {
-     id: string;
-
     @IsString()
+    @IsNotEmpty()
     itemId: string;
   
     @IsNumber()
+    @IsNotEmpty()
     quantity: number;
 
-    purchaseId: string;
-
+    @IsNumber()
+    @IsNotEmpty()
     unitPrice: number;
 
+    @IsOptional()
+    @IsString()
     description?: string;
 
+    @IsOptional()
+    @IsString()
     status?: string;
   
     @IsNumber()
+    @IsNotEmpty()
     amount: number;
   }
 export class CreatePurchaseDto {
@@ -39,7 +44,8 @@ export class CreatePurchaseDto {
     @IsNotEmpty()
     status: string;
 
-    @IsDate()
+    @IsNotEmpty()
+    @Type(() => Date)
     orderDate: Date;
 
     @IsString()
@@ -47,20 +53,23 @@ export class CreatePurchaseDto {
     paymentMethod: string;
 
     @IsNumber()
+    @IsNotEmpty()
     amount: number;
 
-    @IsString()
     @IsOptional()
+    @IsString()
     reference?: string;
 
     @IsNumber()
+    @IsNotEmpty()
     totalAmount: number;
 
     @IsNumber()
+    @IsNotEmpty()
     totalQuantity: number;
 
-    @IsString()
     @IsOptional()
+    @IsString()
     note?: string;
 
     @IsArray()

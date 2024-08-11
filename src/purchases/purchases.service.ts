@@ -22,14 +22,12 @@ export class PurchasesService {
         note: createPurchaseDto.note,
         items: {
           create: createPurchaseDto.items.map(item => ({
-            purchaseId: item.purchaseId,
             itemId: item.itemId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             amount: item.amount,
             description: item.description,
             status: item.status,
-            id: item.id,
           })),
         },
       },
@@ -98,7 +96,6 @@ export class PurchasesService {
         amount: item.amount,
         description: item.description,
         status: item.status,
-        id: item.id
       })),
     });
   }

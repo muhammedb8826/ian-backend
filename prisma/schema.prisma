@@ -90,7 +90,7 @@ model purchases {
   vendorId                 String
   purchaseRepresentativeId String
   status                   String
-  orderDate                DateTime
+  orderDate                DateTime   @default(now())
   paymentMethod            String
   amount                   Float
   reference                String
