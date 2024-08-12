@@ -28,6 +28,7 @@ import { CreatePurchaseItemDto } from "src/purchase-items/dto/create-purchase-it
 //     amount: number;
 //   }
 export class CreatePurchaseDto {
+    id: string;
     @IsString()
     @IsNotEmpty()
     series: string;
