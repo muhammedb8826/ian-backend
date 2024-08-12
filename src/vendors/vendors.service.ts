@@ -70,8 +70,6 @@ export class VendorsService {
   }
 
   async findAllVendors(search?: string) {
-    console.log(search);
-    
     return this.prisma.vendors.findMany({
       where: search 
       ? {

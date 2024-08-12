@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { UpdatePurchaseDto } from './dto/update-purchase.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,37 +8,45 @@ export class PurchasesService {
   constructor(private readonly prisma: PrismaService) {}
   async create(createPurchaseDto: CreatePurchaseDto) {
     const { items, ...purchaseData } = createPurchaseDto;
-    const purchase = await this.prisma.purchases.create({
-      data: {
-        series: purchaseData.series,
-        vendorId: purchaseData.vendorId,
-        purchaseRepresentativeId: purchaseData.purchaseRepresentativeId,
-        status: purchaseData.status,
-        orderDate: purchaseData.orderDate,
-        paymentMethod: purchaseData.paymentMethod,
-        amount: purchaseData.amount,
-        reference: purchaseData.reference,
-        totalAmount: purchaseData.totalAmount,
-        totalQuantity: purchaseData.totalQuantity,
-        note: purchaseData.note,
-        items: {
-          create: items.map(item => ({
-            itemId: item.itemId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            amount: item.amount,
-            description: item.description,
-            status: item.status,
-          })),
+    try {
+      const purchase = await this.prisma.purchases.create({
+        data: {
+          series: purchaseData.series,
+          vendorId: purchaseData.vendorId,
+          purchaseRepresentativeId: purchaseData.purchaseRepresentativeId,
+          status: purchaseData.status,
+          orderDate: purchaseData.orderDate,
+          paymentMethod: purchaseData.paymentMethod,
+          amount: purchaseData.amount,
+          reference: purchaseData.reference,
+          totalAmount: purchaseData.totalAmount,
+          totalQuantity: purchaseData.totalQuantity,
+          note: purchaseData.note,
+          items: {
+            create: items.map(item => ({
+              itemId: item.itemId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              amount: item.amount,
+              description: item.description,
+              status: item.status,
+            })),
+          },
         },
-      },
-      include: {
-        items: true,
-        vendor: true,
-        purchaseRepresentative: true,
-      },
-    });
-    return purchase;
+        include: {
+          items: true,
+          vendor: true,
+          purchaseRepresentative: true,
+        },
+      });
+      return purchase;
+    } catch (error) {
+      if (error.code === 'P2002') { // Prisma unique constraint error code
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+      throw new InternalServerErrorException('An unexpected error occurred.');
+    }
+   
   }
 
   async findAll(skip: number, take: number) {
@@ -101,40 +109,49 @@ export class PurchasesService {
     const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
   
     // Perform the update operation
-    const updatedPurchase = await this.prisma.purchases.update({
-      where: { id },
-      data: {
-        ...purchaseData,
-        items: {
-          deleteMany: { id: { in: itemsToDelete } }, // Delete items not in the new list
-          upsert: items.map(item => ({
-            where: { id: item.id || '' }, // Use upsert to create or update items
-            update: {
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              amount: item.amount,
-              description: item.description,
-              status: item.status,
-            },
-            create: {
-              itemId: item.itemId,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              amount: item.amount,
-              description: item.description,
-              status: item.status,
-            },
-          })),
-        },
+try {
+  const updatedPurchase = await this.prisma.purchases.update({
+    where: { id },
+    data: {
+      ...purchaseData,
+      items: {
+        deleteMany: { id: { in: itemsToDelete } }, // Delete items not in the new list
+        upsert: items.map(item => ({
+          where: { id: item.id || '' }, // Use upsert to create or update items
+          update: {
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.amount,
+            description: item.description,
+            status: item.status,
+          },
+          create: {
+            itemId: item.itemId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.amount,
+            description: item.description,
+            status: item.status,
+          },
+        })),
       },
-      include: { 
-        items: true,
-        vendor: true,
-        purchaseRepresentative: true,
-      },
-    });
-  
-    return updatedPurchase;
+    },
+    include: { 
+      items: true,
+      vendor: true,
+      purchaseRepresentative: true,
+    },
+  });
+
+  return updatedPurchase;
+} catch (error) {
+  if (error.code === 'P2002') { // Prisma unique constraint error code
+    throw new ConflictException('Unique constraint failed. Please check your data.');
+  }
+  throw new InternalServerErrorException('An unexpected error occurred.');
+}
+
+   
   }
   
 

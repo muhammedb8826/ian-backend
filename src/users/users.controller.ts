@@ -43,6 +43,11 @@ export class UsersController {
     return this.usersService.findAll(skip, take);
   }
 
+  @Get('all')
+  findAllUsers() {
+    return this.usersService.findAllUsers();
+  }
+
   @Get('by-role')
   getUserByRole(@Query('roles') roles?: Role): Promise<User[]> {
     if (roles) {
