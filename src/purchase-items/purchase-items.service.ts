@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CreatePurchaseItemDto } from './dto/create-purchase-item.dto';
 import { UpdatePurchaseItemDto } from './dto/update-purchase-item.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -25,13 +25,27 @@ export class PurchaseItemsService {
 
 
   async update(id: string, updatePurchaseItemDto: UpdatePurchaseItemDto) {
-    const updatedPurchaseItem = await this.prisma.purchaseItems.update({
-      where: { id },
-      data: updatePurchaseItemDto,
-    });
-
-    return updatedPurchaseItem;
+    try {
+      const updatedPurchaseItem = await this.prisma.purchaseItems.update({
+        where: { id },
+        data: {
+          ...updatePurchaseItemDto,
+        },
+        include: {
+          item: true,
+        },
+      });
+  
+      return updatedPurchaseItem;
+    } catch (error) {
+      if (error.code === 'P2002') { // Prisma unique constraint error code
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+  
+      throw new InternalServerErrorException('An unexpected error occurred: ' + error.message);
+    }
   }
+  
 
  async remove(id: string) {
     const deletedPurchaseItem = await this.prisma.purchaseItems.delete({

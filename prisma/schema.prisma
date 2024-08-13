@@ -27,6 +27,7 @@ model users {
   machine_permissions    UserMachinePermission[]
   machines               UserMachine[]
   purchaseRepresentative purchases[]
+  notes                  PurchaseItemNote[] @relation("UserNotes")
 }
 
 model machines {
@@ -117,8 +118,24 @@ model PurchaseItems {
   updatedAt   DateTime  @updatedAt
   item        items     @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
   purchase    purchases @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
+  notes       PurchaseItemNote[] @relation("PurchaseItemNotes")
 
   @@unique([purchaseId, itemId])
+}
+
+
+model PurchaseItemNote {
+  id        String    @id @default(cuid())
+  text      String
+  itemId    String
+  userId    String
+  date      DateTime
+  hour      DateTime
+  item      PurchaseItems @relation("PurchaseItemNotes", fields: [itemId], references: [id])
+  user      users         @relation("UserNotes", fields: [userId], references: [id])
+
+  @@index([itemId])
+  @@index([userId])
 }
 
 model vendors {
