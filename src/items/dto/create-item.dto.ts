@@ -36,4 +36,6 @@ export class CreateItemDto {
 
     @IsString()
     machineId: string;
+
+    quantity: number;
 }

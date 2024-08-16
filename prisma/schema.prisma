@@ -27,7 +27,7 @@ model users {
   machine_permissions    UserMachinePermission[]
   machines               UserMachine[]
   purchaseRepresentative purchases[]
-  notes                  PurchaseItemNote[] @relation("UserNotes")
+  notes                  PurchaseItemNote[]      @relation("UserNotes")
 }
 
 model machines {
@@ -78,6 +78,7 @@ model items {
   selling_price           Float
   purchaseUnitOfMeasureId String?
   unitOfMeasureId         String?
+  quantity                Int
   machine                 machines        @relation(fields: [machineId], references: [id])
   purchaseUnitOfMeasure   UOM?            @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
   unitOfMeasure           UOM?            @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
@@ -91,7 +92,7 @@ model purchases {
   vendorId                 String
   purchaseRepresentativeId String
   status                   String
-  orderDate                DateTime   @default(now())
+  orderDate                DateTime        @default(now())
   paymentMethod            String
   amount                   Float
   reference                String
@@ -106,7 +107,7 @@ model purchases {
 }
 
 model PurchaseItems {
-  id          String    @id @default(cuid())
+  id          String             @id @default(cuid())
   purchaseId  String
   itemId      String
   quantity    Int
@@ -114,25 +115,24 @@ model PurchaseItems {
   amount      Float
   description String?
   status      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  item        items     @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
-  purchase    purchases @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  item        items              @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
+  purchase    purchases          @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
   notes       PurchaseItemNote[] @relation("PurchaseItemNotes")
 
   @@unique([purchaseId, itemId])
 }
 
-
 model PurchaseItemNote {
-  id        String    @id @default(cuid())
-  text      String
-  itemId    String
-  userId    String
-  date      DateTime
-  hour      DateTime
-  item      PurchaseItems @relation("PurchaseItemNotes", fields: [itemId], references: [id])
-  user      users         @relation("UserNotes", fields: [userId], references: [id])
+  id     String        @id @default(cuid())
+  text   String
+  itemId String
+  userId String
+  date   DateTime
+  hour   DateTime
+  item   PurchaseItems @relation("PurchaseItemNotes", fields: [itemId], references: [id])
+  user   users         @relation("UserNotes", fields: [userId], references: [id])
 
   @@index([itemId])
   @@index([userId])

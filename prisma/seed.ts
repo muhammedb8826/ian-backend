@@ -84,6 +84,7 @@ async function main() {
         purchase_price: 20.0,
         selling_price: 30.0,
         unitOfMeasureId: squareMeter.id,
+        quantity: 100,
       },
     });
 
