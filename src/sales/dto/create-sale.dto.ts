@@ -20,9 +20,8 @@ export class CreateSaleDto {
     @Type(() => Date)
     orderDate: Date;
 
-    @IsString()
-    @IsNotEmpty()
-    paymentMethod: string;
+    @IsOptional()
+    paymentMethod?: string;
 
     @IsNumber()
     @IsNotEmpty()

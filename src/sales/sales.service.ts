@@ -15,15 +15,16 @@ export class SalesService {
           operatorId: saledata.operatorId,
           status: saledata.status,
           orderDate: saledata.orderDate,
-          paymentMethod: saledata.paymentMethod,
+          paymentMethod: saledata.paymentMethod || 'Cash',
           amount: saledata.amount,
-          reference: saledata.reference,
+          reference: saledata.reference || '',
           totalAmount: saledata.totalAmount,
           totalQuantity: saledata.totalQuantity,
           note: saledata.note,
           items: {
             create: items.map(item => ({
               itemId: item.itemId,
+              unitId: item.unitId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               amount: item.amount,
@@ -39,6 +40,7 @@ export class SalesService {
       })
       return sale
     } catch (error) {
+      console.error(error);
       if (error.code === 'P2002') { // Prisma unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
@@ -122,6 +124,7 @@ try {
           where: { id: item.id || '' },
           create: {
             itemId: item.itemId,
+            unitId: item.unitId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             amount: item.amount,
@@ -129,6 +132,7 @@ try {
             status: item.status
           },
           update: {
+            unitId: item.unitId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             amount: item.amount,

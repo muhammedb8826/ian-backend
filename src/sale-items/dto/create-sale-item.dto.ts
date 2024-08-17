@@ -6,6 +6,8 @@ export class CreateSaleItemDto {
     @IsString()
     itemId: string;
 
+    unitId: string;
+
     @IsNumber()
     @IsNotEmpty()
     quantity: number;

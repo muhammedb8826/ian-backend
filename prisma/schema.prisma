@@ -165,6 +165,7 @@ model SaleItems {
   id          String          @id @default(cuid())
   saleId      String
   itemId      String
+  unitId      String
   quantity    Int
   unitPrice   Float
   amount      Float
@@ -175,6 +176,7 @@ model SaleItems {
   item        items           @relation("SaleItemsForItem", fields: [itemId], references: [id])
   sale        sales           @relation("SaleItemsForSale", fields: [saleId], references: [id])
   notes       SalesItemNote[] @relation("SaleItemNotes")
+  unit       UOM             @relation("ItemSalesUnitOfMeasure", fields: [unitId], references: [id])
 }
 
 model SalesItemNote {
@@ -229,6 +231,7 @@ model UOM {
   purchaseItems  items[]      @relation("ItemPurchaseUnitOfMeasure")
   saleItems      items[]      @relation("ItemSalesUnitOfMeasure")
   items          items[]      @relation("ItemUnitOfMeasure")
+  saleItemsUnit  SaleItems[]  @relation("ItemSalesUnitOfMeasure")
 }
 
 model Attribute {

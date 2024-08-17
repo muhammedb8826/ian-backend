@@ -79,7 +79,13 @@ export class ItemsService {
   }
 
   async findAllItems() {
-    return this.prisma.items.findMany()
+    return this.prisma.items.findMany({
+      include: {
+        unitOfMeasure: true,
+        purchaseUnitOfMeasure: true,
+        machine: true,
+      }
+    })
   }
 
   async findOne(id: string) {
@@ -115,6 +121,11 @@ export class ItemsService {
     return this.prisma.items.update({
       where: { id },
       data: updateData,
+      include: {
+        unitOfMeasure: true,
+        purchaseUnitOfMeasure: true,
+        machine: true,
+      }
     });
   }
 
