@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreatePurchaseItemDto } from './dto/create-purchase-item.dto';
 import { UpdatePurchaseItemDto } from './dto/update-purchase-item.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -18,6 +18,9 @@ export class PurchaseItemsService {
   async findAll(purchaseId: string) {
     const purchaseItems = await this.prisma.purchaseItems.findMany({
       where: { purchaseId },
+      include: {
+        notes: true,
+      }
     });
 
     return purchaseItems;
@@ -83,7 +86,7 @@ export class PurchaseItemsService {
                 throw new ConflictException('Unique constraint failed. Please check your data.');
             }
 
-            throw new InternalServerErrorException('An unexpected error occurred: ' + error.message);
+            throw new error('An unexpected error occurred: ' + error.message);
         }
     });
 }

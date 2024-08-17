@@ -27,7 +27,9 @@ model users {
   machine_permissions    UserMachinePermission[]
   machines               UserMachine[]
   purchaseRepresentative purchases[]
+  operator               sales[]
   notes                  PurchaseItemNote[]      @relation("UserNotes")
+  salesNotes             SalesItemNote[]         @relation("UserSalesNotes")
 }
 
 model machines {
@@ -77,13 +79,16 @@ model items {
   purchase_price          Float
   selling_price           Float
   purchaseUnitOfMeasureId String?
+  saleUnitOfMeasureId     String?
   unitOfMeasureId         String?
   quantity                Int
   machine                 machines        @relation(fields: [machineId], references: [id])
   purchaseUnitOfMeasure   UOM?            @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
+  saleUnitOfMeasure       UOM?            @relation("ItemSalesUnitOfMeasure", fields: [saleUnitOfMeasureId], references: [id])
   unitOfMeasure           UOM?            @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
   attributes              Attribute[]
   purchases               PurchaseItems[] @relation("PurchaseItemsForItem")
+  sales                   SaleItems[]     @relation("SaleItemsForItem")
 }
 
 model purchases {
@@ -138,6 +143,54 @@ model PurchaseItemNote {
   @@index([userId])
 }
 
+model sales {
+  id            String      @id @default(cuid())
+  series        String
+  operatorId    String
+  status        String
+  orderDate     DateTime    @default(now())
+  paymentMethod String
+  amount        Float
+  reference     String
+  totalAmount   Float
+  totalQuantity Int
+  note          String?
+  items         SaleItems[] @relation("SaleItemsForSale")
+  operator      users       @relation(fields: [operatorId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model SaleItems {
+  id          String          @id @default(cuid())
+  saleId      String
+  itemId      String
+  quantity    Int
+  unitPrice   Float
+  amount      Float
+  description String?
+  status      String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  item        items           @relation("SaleItemsForItem", fields: [itemId], references: [id])
+  sale        sales           @relation("SaleItemsForSale", fields: [saleId], references: [id])
+  notes       SalesItemNote[] @relation("SaleItemNotes")
+}
+
+model SalesItemNote {
+  id     String    @id @default(cuid())
+  text   String
+  itemId String
+  userId String
+  date   DateTime
+  hour   DateTime
+  item   SaleItems @relation("SaleItemNotes", fields: [itemId], references: [id])
+  user   users     @relation("UserSalesNotes", fields: [userId], references: [id])
+
+  @@index([itemId])
+  @@index([userId])
+}
+
 model vendors {
   id          String      @id @default(cuid())
   fullName    String      @unique
@@ -153,12 +206,14 @@ model vendors {
 }
 
 model UnitCategory {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  units       UOM[]
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String
+  constant      Boolean
+  constantValue Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  units         UOM[]
 }
 
 model UOM {
@@ -172,12 +227,13 @@ model UOM {
   updatedAt      DateTime     @updatedAt
   unitCategory   UnitCategory @relation(fields: [unitCategoryId], references: [id])
   purchaseItems  items[]      @relation("ItemPurchaseUnitOfMeasure")
+  saleItems      items[]      @relation("ItemSalesUnitOfMeasure")
   items          items[]      @relation("ItemUnitOfMeasure")
 }
 
 model Attribute {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique
   value     String
   itemId    String
   createdAt DateTime @default(now())

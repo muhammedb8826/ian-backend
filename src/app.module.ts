@@ -22,8 +22,11 @@ import { VendorsModule } from './vendors/vendors.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { PurchaseItemsModule } from './purchase-items/purchase-items.module';
 import { PurchaseItemNotesModule } from './purchase-item-notes/purchase-item-notes.module';
+import { SalesModule } from './sales/sales.module';
+import { SaleItemsModule } from './sale-items/sale-items.module';
+import { SaleItemNotesModule } from './sale-item-notes/sale-item-notes.module';
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule, SalesModule, SaleItemsModule, SaleItemNotesModule],
   providers: [
     {
       provide: APP_GUARD,

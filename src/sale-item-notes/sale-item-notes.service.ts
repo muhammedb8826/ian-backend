@@ -1,17 +1,17 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreatePurchaseItemNoteDto } from './dto/create-purchase-item-note.dto';
-import { UpdatePurchaseItemNoteDto } from './dto/update-purchase-item-note.dto';
+import { CreateSaleItemNoteDto } from './dto/create-sale-item-note.dto';
+import { UpdateSaleItemNoteDto } from './dto/update-sale-item-note.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
-export class PurchaseItemNotesService {
+export class SaleItemNotesService {
   constructor(private readonly prisma: PrismaService) {}
-  async create(createPurchaseItemNoteDto: CreatePurchaseItemNoteDto) {
+ async create(createSaleItemNoteDto: CreateSaleItemNoteDto) {
     try {
-      const purchaseItemNote = this.prisma.purchaseItemNote.create({
-        data: createPurchaseItemNoteDto,
+      const saleItemNote = this.prisma.salesItemNote.create({
+        data: createSaleItemNoteDto,
       });
-      return purchaseItemNote;
+      return saleItemNote;
     } catch (error) {
       if (error.code === 'P2002') { // Unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
@@ -21,31 +21,31 @@ export class PurchaseItemNotesService {
   }
 
  async findAll() {
-    return this.prisma.purchaseItemNote.findMany({
+    return this.prisma.salesItemNote.findMany({
       include: { item: true, user: true },
     });
   }
 
   async findOne(id: string) {
-    const purchaseItemNote = await this.prisma.purchaseItemNote.findUnique({
+   const saleItemNote = await this.prisma.salesItemNote.findUnique({
       where: { id },
       include: { item: true, user: true },
     });
     
-    if (!purchaseItemNote) {
-      throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
+    if (!saleItemNote) {
+      throw new NotFoundException(`SaleItemNote with ID ${id} not found`);
     }
     
-    return purchaseItemNote;
+    return saleItemNote;
   }
 
-  async update(id: string, updatePurchaseItemNoteDto: UpdatePurchaseItemNoteDto) {
+ async update(id: string, updateSaleItemNoteDto: UpdateSaleItemNoteDto) {
     try {
-      const updatedPurchaseItemNote = await this.prisma.purchaseItemNote.update({
+      const updatedSaleItemNote = await this.prisma.salesItemNote.update({
         where: { id },
-        data: updatePurchaseItemNoteDto,
+        data: updateSaleItemNoteDto,
       });
-      return updatedPurchaseItemNote;
+      return updatedSaleItemNote;
     } catch (error) {
       if (error.code === 'P2002') { // Unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
@@ -54,12 +54,12 @@ export class PurchaseItemNotesService {
     }
   }
 
-  async remove(id: string) {
+  remove(id: string) {
     try {
-      const deletedPurchaseItemNote = await this.prisma.purchaseItemNote.delete({
+      const deletedSaleItemNote = this.prisma.salesItemNote.delete({
         where: { id },
       });
-      return deletedPurchaseItemNote;
+      return deletedSaleItemNote;
     } catch (error) {
       if (error.code === 'P2025') { // Record not found error code
         throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);

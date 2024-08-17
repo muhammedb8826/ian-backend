@@ -1,21 +1,16 @@
 import { Type } from "class-transformer";
 import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
-import { CreatePurchaseItemDto } from "src/purchase-items/dto/create-purchase-item.dto";
+import { CreateSaleItemDto } from "src/sale-items/dto/create-sale-item.dto";
 
-export class CreatePurchaseDto {
+export class CreateSaleDto {
     id: string;
     @IsString()
     @IsNotEmpty()
     series: string;
 
-
     @IsString()
     @IsNotEmpty()
-    vendorId: string;
-
-    @IsString()
-    @IsNotEmpty()
-    purchaseRepresentativeId: string;
+    operatorId: string;
 
     @IsString()
     @IsNotEmpty()
@@ -37,20 +32,13 @@ export class CreatePurchaseDto {
     @IsString()
     reference?: string;
 
-    @IsNumber()
-    @IsNotEmpty()
     totalAmount: number;
-
-    @IsNumber()
-    @IsNotEmpty()
     totalQuantity: number;
-
-    @IsOptional()
-    @IsString()
-    note?: string;
+    note: string;
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => CreatePurchaseItemDto)
-    items: CreatePurchaseItemDto[];
+    @Type(() => CreateSaleItemDto)
+    items: CreateSaleItemDto[];
+
 }
