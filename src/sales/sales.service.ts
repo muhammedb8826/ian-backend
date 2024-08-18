@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -122,100 +122,102 @@ export class SalesService {
     });
   }
 
- async update(id: string, updateSaleDto: UpdateSaleDto) {
-   const { items, ...saledata } = updateSaleDto;
-
- // Fetch the existing purchase and its items
- const existingSale = await this.prisma.sales.findUnique({
-  where: { id },
-  include: { items: true },
-});
-
-if (!existingSale) {
-  throw new Error(`Sale with ID ${id} not found`);
-}
-
-// Extract existing item IDs for comparison
-const existingItemIds = existingSale.items.map(item => item.id);
-const newItemIds = items.map(item => item.id);
-
-// Determine which items need to be deleted (those not in the new items list)
-const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
-
-// Perform the update operation
-try {
-  const updatedSale = await this.prisma.sales.update({
-    where: { id },
-    data: {
-      ...saledata,
-      items: {
-        deleteMany: { id: { in: itemsToDelete}},
-        upsert: items.map(item => ({
-          where: { id: item.id || '' },
-          create: {
-            itemId: item.itemId,
-            unitId: item.unitId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            amount: item.amount,
-            description: item.description,
-            status: item.status,
-            notes: {
-              create: item.notes.map(note => ({
-                text: note.text,
-                userId: note.userId,
-                date: note.date,
-                hour: note.hour,
-              })) || [],
+  async update(id: string, updateSaleDto: UpdateSaleDto) {
+    const { items, ...saledata } = updateSaleDto;
+  
+    // Fetch the existing sale and its items
+    const existingSale = await this.prisma.sales.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+  
+    if (!existingSale) {
+      throw new NotFoundException(`Sale with ID ${id} not found`);
+    }
+  
+    // Extract existing item IDs for comparison
+    const existingItemIds = existingSale.items.map(item => item.id);
+    const newItemIds = items.map(item => item.id);
+  
+    // Determine which items need to be deleted (those not in the new items list)
+    const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
+  
+    try {
+      const updatedSale = await this.prisma.sales.update({
+        where: { id },
+        data: {
+          ...saledata,
+          items: {
+            // Delete items that are no longer present in the update request
+            deleteMany: {
+              id: {
+                in: itemsToDelete,
+              },
             },
-          },
-          update: {
-            unitId: item.unitId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            amount: item.amount,
-            description: item.description,
-            status: item.status,
-            notes: {
-              upsert: item.notes.map(note => ({
-                where: { id: note.id || '' },
-                create: {
-                  text: note.text,
-                  userId: note.userId,
-                  date: note.date,
-                  hour: note.hour,
+            // Update existing items or create new items as needed
+            upsert: items.map(item => ({
+              where: { id: item.id },
+              update: {
+                itemId: item.itemId,
+                unitId: item.unitId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                amount: item.amount,
+                description: item.description,
+                status: item.status,
+                notes: {
+                  updateMany: item.notes.map(note => ({
+                    where: { id: note.id },
+                    data: {
+                      text: note.text,
+                      date: note.date,
+                      hour: note.hour,
+                    },
+                  })),
                 },
-                update: {
-                  text: note.text,
-                  userId: note.userId,
-                  date: note.date,
-                  hour: note.hour,
+              },
+              create: {
+                itemId: item.itemId,
+                unitId: item.unitId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                amount: item.amount,
+                description: item.description,
+                status: item.status,
+                notes: {
+                  create: item.notes.map(note => ({
+                    text: note.text,
+                    userId: note.userId,
+                    date: note.date,
+                    hour: note.hour,
+                  })),
                 },
-              })) || [],
-            },
-
+              },
+            })),
           },
-        })),
-      },
-    },
-    include: {
-      items: {
+        },
         include: {
-          notes: true
-        }
-      },
-      operator: true,
-    },
-  });
-  return updatedSale;
-} catch (error) {
-  if (error.code === 'P2002') { // Prisma unique constraint error code
-    throw new ConflictException('Unique constraint failed. Please check your data.');
+          items: {
+            include: {
+              notes: true,
+            },
+          },
+          operator: true,
+        },
+      });
+  
+      return updatedSale;
+    } catch (error) {
+      console.error("Error updating sale:", error);
+  
+      if (error.code === 'P2002') {
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+  
+      throw new Error(`An unexpected error occurred: ${error.message}`);
+    }
   }
-  throw new Error('An unexpected error occurred.');
-}
-}
-
+  
   async remove(id: string) {
     const sale = await this.prisma.sales.findUnique({
       where: { id },

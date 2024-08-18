@@ -12,7 +12,7 @@ export class CreateSaleItemNoteDto {
 
     @IsNotEmpty()
     @IsString()
-    readonly userId: string;
+    userId: string;
 
     @IsNotEmpty()
     @IsDateString()
