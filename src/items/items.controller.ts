@@ -13,10 +13,10 @@ export class ItemsController {
   }
 
   @Get()
-  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10) {
+  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10, @Query('search') search?: string) {
     const skip = (page - 1) * limit
     const take = limit
-    return this.itemsService.findAll(skip, take);
+    return this.itemsService.findAll(skip, take, search);
   }
 
   @Get('all')

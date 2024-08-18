@@ -21,7 +21,9 @@ export class UnitCategoryService {
     return this.prisma.unitCategory.create({
       data: {
         name: createUnitCategoryDto.name,
-        description: createUnitCategoryDto.description
+        description: createUnitCategoryDto.description,
+        constant: createUnitCategoryDto.constant,
+        constantValue: createUnitCategoryDto.constantValue
       }
     })
   }
@@ -58,7 +60,9 @@ export class UnitCategoryService {
       where: {id},
       data: {
         name: updateUnitCategoryDto.name,
-        description: updateUnitCategoryDto.description
+        description: updateUnitCategoryDto.description,
+        constant: updateUnitCategoryDto.constant,
+        constantValue: updateUnitCategoryDto.constantValue
       }
     })
   }

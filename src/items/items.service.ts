@@ -34,6 +34,7 @@ export class ItemsService {
           can_be_purchased: createItemDto.can_be_purchased || false,
           purchase_price: createItemDto.purchase_price || 0,
           selling_price: createItemDto.selling_price || 0,
+          quantity: createItemDto.quantity || 0,
           unitOfMeasure: createItemDto.unitOfMeasureId ? { connect: { id: createItemDto.unitOfMeasureId } } : undefined,
           purchaseUnitOfMeasure: createItemDto.purchaseUnitOfMeasureId ? { connect: { id: createItemDto.purchaseUnitOfMeasureId } } : undefined,
           machine: { connect: { id: createItemDto.machineId } },
@@ -47,26 +48,44 @@ export class ItemsService {
     }
   }
 
-
-  async findAll(skip: number, take: number) {
-   const [items, total] = await this.prisma.$transaction([
+  async findAll(skip: number, take: number, search?: string) {
+    const [items, total] = await this.prisma.$transaction([
       this.prisma.items.findMany({
         skip: Number(skip),
         take: Number(take),
+        where: search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        } : {},
         orderBy: {
           createdAt: 'desc'
         }
       }),
-      this.prisma.items.count()
-    ])
+      this.prisma.items.count({
+        where: search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        } : {}
+      })
+    ]);
     return {
       items,
       total
-    }
+    };
   }
 
   async findAllItems() {
-    return this.prisma.items.findMany()
+    return this.prisma.items.findMany({
+      include: {
+        unitOfMeasure: true,
+        purchaseUnitOfMeasure: true,
+        machine: true,
+      }
+    })
   }
 
   async findOne(id: string) {
@@ -93,6 +112,7 @@ export class ItemsService {
       can_be_purchased: updateItemDto.can_be_purchased,
       purchase_price: updateItemDto.purchase_price,
       selling_price: updateItemDto.selling_price,
+      quantity: updateItemDto.quantity,
       unitOfMeasure: updateItemDto.unitOfMeasureId ? { connect: { id: updateItemDto.unitOfMeasureId } } : undefined,
       purchaseUnitOfMeasure: updateItemDto.purchaseUnitOfMeasureId ? { connect: { id: updateItemDto.purchaseUnitOfMeasureId } } : undefined,
       machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
@@ -101,6 +121,11 @@ export class ItemsService {
     return this.prisma.items.update({
       where: { id },
       data: updateData,
+      include: {
+        unitOfMeasure: true,
+        purchaseUnitOfMeasure: true,
+        machine: true,
+      }
     });
   }
 

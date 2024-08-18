@@ -31,7 +31,6 @@ export class UomService {
         conversionRate: conversionRate,
         baseUnit: createUomDto.baseUnit,
         unitCategoryId: createUomDto.unitCategoryId,
-
       }
     })
   }

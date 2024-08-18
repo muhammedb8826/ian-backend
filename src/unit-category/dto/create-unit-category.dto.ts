@@ -7,4 +7,9 @@ export class CreateUnitCategoryDto {
 
     @IsOptional()
     description?: string
+
+    constant: boolean
+
+    constantValue: number
+
 }

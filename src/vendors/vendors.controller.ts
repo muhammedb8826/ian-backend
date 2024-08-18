@@ -20,8 +20,8 @@ export class VendorsController {
   }
 
   @Get('all')
-  findAllVendors() {
-    return this.vendorsService.findAllVendors();
+  findAllVendors(@Query('search') search?: string) {
+    return this.vendorsService.findAllVendors(search);
   }
 
   @Get(':id')
