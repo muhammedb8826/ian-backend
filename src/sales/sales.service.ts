@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class SalesService {
@@ -29,23 +30,44 @@ export class SalesService {
               unitPrice: item.unitPrice,
               amount: item.amount,
               description: item.description,
-              status: item.status
+              status: item.status,
+              notes: {
+                create: item.notes.map(note => ({
+                  text: note.text,
+                  userId: note.userId,
+                  date: note.date,
+                  hour: note.hour,
+                })),
+              },
             })),
           },
         },
         include: {
-          items: true,
+          items: {
+            include: {
+              notes: true,
+            },
+          },
           operator: true,
         },
       })
       return sale
     } catch (error) {
-      console.error(error);
-      if (error.code === 'P2002') { // Prisma unique constraint error code
+      console.error("Error creating sale:", error);
+
+      // Check if it's a Prisma error
+      if (error.code === 'P2002') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-      throw new Error('An unexpected error occurred.');
-    }
+      
+      // Log the error details for better debugging
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Prisma error details:', error.meta);
+      }
+      
+      // Throw a more informative error for better feedback
+      throw new Error(`An unexpected error occurred: ${error.message}`);
+      }
   }
 
   async findAll(skip: number, take: number) {
@@ -57,7 +79,11 @@ export class SalesService {
           createdAt: 'desc'
         },
         include: {
-          items: true,
+          items: {
+            include: {
+              notes: true
+            }
+          },
           operator: true,
         },
       }),
@@ -72,7 +98,11 @@ export class SalesService {
   async findAllSales() {
     return this.prisma.sales.findMany({
       include: {
-        items: true,
+        items: {
+          include : {
+            notes: true
+          }
+        },
         operator: true,
       },
     });
@@ -129,7 +159,15 @@ try {
             unitPrice: item.unitPrice,
             amount: item.amount,
             description: item.description,
-            status: item.status
+            status: item.status,
+            notes: {
+              create: item.notes.map(note => ({
+                text: note.text,
+                userId: note.userId,
+                date: note.date,
+                hour: note.hour,
+              })) || [],
+            },
           },
           update: {
             unitId: item.unitId,
@@ -137,13 +175,35 @@ try {
             unitPrice: item.unitPrice,
             amount: item.amount,
             description: item.description,
-            status: item.status
+            status: item.status,
+            notes: {
+              upsert: item.notes.map(note => ({
+                where: { id: note.id || '' },
+                create: {
+                  text: note.text,
+                  userId: note.userId,
+                  date: note.date,
+                  hour: note.hour,
+                },
+                update: {
+                  text: note.text,
+                  userId: note.userId,
+                  date: note.date,
+                  hour: note.hour,
+                },
+              })) || [],
+            },
+
           },
         })),
       },
     },
     include: {
-      items: true,
+      items: {
+        include: {
+          notes: true
+        }
+      },
       operator: true,
     },
   });

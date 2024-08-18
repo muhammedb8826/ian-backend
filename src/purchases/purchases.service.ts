@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { UpdatePurchaseDto } from './dto/update-purchase.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PurchasesService {
@@ -31,23 +32,44 @@ export class PurchasesService {
               amount: item.amount,
               description: item.description,
               status: item.status,
+              notes: {
+                create: item.notes.map(note => ({
+                  text: note.text,
+                  userId: note.userId,
+                  date: note.date,
+                  hour: note.hour,
+                })),
+              },
             })),
           },
         },
         include: {
-          items: true,
+          items: {
+            include: {
+              notes: true,
+            },
+          },
           vendor: true,
           purchaseRepresentative: true,
         },
       });
       return purchase;
     } catch (error) {
-      if (error.code === 'P2002') { // Prisma unique constraint error code
+      console.error("Error creating purchase:", error);
+
+      // Check if it's a Prisma error
+      if (error.code === 'P2002') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-      throw new Error('An unexpected error occurred.');
-    }
 
+      // Log the error details for better debugging
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Prisma error details:', error.meta);
+      }
+
+      // Throw a more informative error for better feedback
+      throw new Error(`An unexpected error occurred: ${error.message}`);
+    }
   }
 
   async findAll(skip: number, take: number) {
@@ -60,7 +82,9 @@ export class PurchasesService {
         },
         include: {
           vendor: true,
-          items: true,
+          items: {
+            include: { notes: true },
+          },
           purchaseRepresentative: true
         },
       }),
@@ -74,7 +98,15 @@ export class PurchasesService {
 
   async findAllPurchases() {
     return this.prisma.purchases.findMany({
-      include: { vendor: true, purchaseRepresentative: true, items: true },
+      include: {
+        vendor: true,
+        purchaseRepresentative: true,
+        items: {
+          include: {
+            notes: true
+          }
+        },
+      },
     });
   }
 
@@ -128,6 +160,23 @@ export class PurchasesService {
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
+                notes: {
+                  upsert: item.notes.map(note => ({
+                    where: { id: note.id || '' },
+                    update: {
+                      text: note.text,
+                      userId: note.userId,
+                      date: note.date,
+                      hour: note.hour,
+                    },
+                    create: {
+                      text: note.text,
+                      userId: note.userId,
+                      date: note.date,
+                      hour: note.hour,
+                    },
+                  })) || [],
+                },
               },
               create: {
                 itemId: item.itemId,
@@ -137,12 +186,24 @@ export class PurchasesService {
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
+                notes: {
+                  create: item.notes.map(note => ({
+                    text: note.text,
+                    userId: note.userId,
+                    date: note.date,
+                    hour: note.hour,
+                  })) || [],
+                },
               },
             })),
           },
         },
         include: {
-          items: true,
+          items: {
+           include: {
+             notes: true
+          },
+        },
           vendor: true,
           purchaseRepresentative: true,
         },
@@ -150,8 +211,13 @@ export class PurchasesService {
 
       return updatedPurchase;
     } catch (error) {
+      console.error('Error updating purchase:', error);
       if (error.code === 'P2002') { // Prisma unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Prisma error details:', error.meta);
       }
       throw new Error('An unexpected error occurred.');
     }

@@ -89,6 +89,7 @@ model items {
   attributes              Attribute[]
   purchases               PurchaseItems[] @relation("PurchaseItemsForItem")
   sales                   SaleItems[]     @relation("SaleItemsForItem")
+  operatorStock           OperatorStock[]
 }
 
 model purchases {
@@ -115,6 +116,7 @@ model PurchaseItems {
   id          String             @id @default(cuid())
   purchaseId  String
   itemId      String
+  unitId      String
   quantity    Int
   unitPrice   Float
   amount      Float
@@ -125,6 +127,7 @@ model PurchaseItems {
   item        items              @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
   purchase    purchases          @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
   notes       PurchaseItemNote[] @relation("PurchaseItemNotes")
+  unit        UOM             @relation("ItemPurchasesUnitOfMeasure", fields: [unitId], references: [id])
 
   @@unique([purchaseId, itemId])
 }
@@ -176,7 +179,7 @@ model SaleItems {
   item        items           @relation("SaleItemsForItem", fields: [itemId], references: [id])
   sale        sales           @relation("SaleItemsForSale", fields: [saleId], references: [id])
   notes       SalesItemNote[] @relation("SaleItemNotes")
-  unit       UOM             @relation("ItemSalesUnitOfMeasure", fields: [unitId], references: [id])
+  unit        UOM             @relation("ItemSalesUnitOfMeasure", fields: [unitId], references: [id])
 }
 
 model SalesItemNote {
@@ -191,6 +194,22 @@ model SalesItemNote {
 
   @@index([itemId])
   @@index([userId])
+}
+
+model OperatorStock {
+  id          String  @id @default(cuid())
+  itemId      String
+  unitId      String
+  quantity    Int
+  unitPrice   Float
+  amount      Float
+  description String?
+  status      String
+
+
+  item        items @relation(fields: [itemId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model vendors {
@@ -232,6 +251,7 @@ model UOM {
   saleItems      items[]      @relation("ItemSalesUnitOfMeasure")
   items          items[]      @relation("ItemUnitOfMeasure")
   saleItemsUnit  SaleItems[]  @relation("ItemSalesUnitOfMeasure")
+  purchaseItemsUnit PurchaseItems[] @relation("ItemPurchasesUnitOfMeasure")
 }
 
 model Attribute {
