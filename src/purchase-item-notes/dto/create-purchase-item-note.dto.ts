@@ -1,6 +1,7 @@
 import { IsDateString, IsNotEmpty, IsString } from "class-validator";
 
 export class CreatePurchaseItemNoteDto {
+  id: string;
   @IsNotEmpty()
   @IsString()
   readonly text: string;

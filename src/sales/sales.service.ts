@@ -44,7 +44,7 @@ export class SalesService {
       if (error.code === 'P2002') { // Prisma unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-      throw new error('An unexpected error occurred.');
+      throw new Error('An unexpected error occurred.');
     }
   }
 
@@ -152,7 +152,7 @@ try {
   if (error.code === 'P2002') { // Prisma unique constraint error code
     throw new ConflictException('Unique constraint failed. Please check your data.');
   }
-  throw new error('An unexpected error occurred.');
+  throw new Error('An unexpected error occurred.');
 }
 }
 

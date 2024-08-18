@@ -16,7 +16,7 @@ export class SaleItemNotesService {
       if (error.code === 'P2002') { // Unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-      throw new error('An unexpected error occurred.');
+      throw new Error('An unexpected error occurred.');
     }
   }
 
@@ -50,7 +50,7 @@ export class SaleItemNotesService {
       if (error.code === 'P2002') { // Unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-      throw new error('An unexpected error occurred.');
+      throw new Error('An unexpected error occurred.');
     }
   }
 
@@ -64,7 +64,7 @@ export class SaleItemNotesService {
       if (error.code === 'P2025') { // Record not found error code
         throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
       }
-      throw new error('An unexpected error occurred.');
+      throw new Error('An unexpected error occurred.');
     }
   }
 }

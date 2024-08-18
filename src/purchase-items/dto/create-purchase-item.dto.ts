@@ -1,4 +1,6 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { CreatePurchaseItemNoteDto } from "src/purchase-item-notes/dto/create-purchase-item-note.dto";
 
 export class CreatePurchaseItemDto {
     id: string;
@@ -27,4 +29,9 @@ export class CreatePurchaseItemDto {
     @IsNumber()
     @IsNotEmpty()
     amount: number;
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreatePurchaseItemNoteDto)
+    notes: CreatePurchaseItemNoteDto[];
 }
