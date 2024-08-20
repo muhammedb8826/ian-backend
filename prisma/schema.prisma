@@ -57,11 +57,27 @@ model UserMachine {
 
 model services {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String  
+  itemId      String
+  sellingPrice Float
   status      Boolean  @default(true)
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  item        items     @relation("ItemServices", fields: [itemId], references: [id], onDelete: Cascade)
+   @@unique([itemId, name])
+}
+
+model discounts {
+  id          String   @id @default(cuid())
+  level        Int
+  quantity     Int
+  percentage     Float
+  itemId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  item       items   @relation("ItemDiscounts", fields: [itemId], references: [id])
+  @@unique([itemId, level])
 }
 
 model items {
@@ -90,6 +106,8 @@ model items {
   purchases               PurchaseItems[] @relation("PurchaseItemsForItem")
   sales                   SaleItems[]     @relation("SaleItemsForItem")
   operatorStock           OperatorStock[]
+  discounts               discounts[]    @relation("ItemDiscounts")
+  services                services[]  @relation("ItemServices") // One-to-many relation
 }
 
 model purchases {
@@ -265,6 +283,41 @@ model Attribute {
 
   @@unique([name, itemId])
 }
+
+// model orders {
+//   id          String   @id @default(cuid())
+//   series      String
+//   customerId  String
+//   status      String
+//   orderDate   DateTime @default(now())
+//   deliveryDate DateTime
+//   totalAmount Float
+//   grandTotal  Float
+//   tax         Float
+//   totalQuantity Int
+//   note        String?
+//   items       OrderItems[]
+//   customer    customers @relation(fields: [customerId], references: [id])
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+// }
+
+// model orderItems {
+//   id          String   @id @default(cuid())
+//   orderId     String
+//   itemId      String
+//   unitId      String
+//   quantity    Int
+//   unitPrice   Float
+//   amount      Float
+//   description String?
+//   status      String
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+//   item        items    @relation(fields: [itemId], references: [id])
+//   order       orders   @relation(fields: [orderId], references: [id])
+//   unit        UOM      @relation(fields: [unitId], references: [id])
+// }
 
 enum Role {
   USER

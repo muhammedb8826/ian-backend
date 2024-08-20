@@ -6,20 +6,31 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ItemsService {
-  constructor(private prisma: PrismaService) {}
-  
+  constructor(private prisma: PrismaService) { }
+
   async create(createItemDto: CreateItemDto) {
     if (!createItemDto.machineId) {
       throw new ConflictException('Machine ID is required.');
     }
-
+  
     // Check if the machine exists
     const machineExists = await this.prisma.machines.findUnique({
       where: { id: createItemDto.machineId },
     });
-
+  
     if (!machineExists) {
       throw new ConflictException('Machine ID does not exist.');
+    }
+  
+    // Check if an item with the same name already exists
+
+    const normalizedAttribute = createItemDto.name.toLowerCase();
+    const existingItem = await this.prisma.items.findUnique({
+      where: { name: normalizedAttribute },
+    });
+  
+    if (existingItem) {
+      throw new ConflictException('An item with this name already exists.');
     }
 
     try {
@@ -38,13 +49,57 @@ export class ItemsService {
           unitOfMeasure: createItemDto.unitOfMeasureId ? { connect: { id: createItemDto.unitOfMeasureId } } : undefined,
           purchaseUnitOfMeasure: createItemDto.purchaseUnitOfMeasureId ? { connect: { id: createItemDto.purchaseUnitOfMeasureId } } : undefined,
           machine: { connect: { id: createItemDto.machineId } },
+          services: {
+            create: createItemDto.services?.map(service => ({
+              name: service.name,
+              description: service.description || '',
+              status: service.status,
+              sellingPrice: service.sellingPrice || 0,
+            })) || []
+          },
+          discounts: {
+            create: createItemDto.discounts?.map(discount => ({
+              level: discount.level,
+              quantity: discount.quantity || 0,
+              percentage: discount.percentage || 0
+            })) || []
+          }
         },
+        include: {
+          unitOfMeasure: true,
+          purchaseUnitOfMeasure: true,
+          machine: true,
+          services: true,
+          discounts: true
+        }
       });
     } catch (error) {
-      if (error.code === 'P2003') {
-        throw new ConflictException('Foreign key constraint failed.');
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2002': // Unique constraint violation
+            const target = error.meta?.target;
+            if (Array.isArray(target)) {
+              if (target.includes('items_name_key')) {
+                throw new ConflictException('An item with this name already exists.');
+              } else if (target.includes('services_name_itemId_key')) {
+                throw new ConflictException('A service with this name already exists for this item.');
+              } else if (target.includes('discounts_level_itemId_key')) {
+                throw new ConflictException('A discount with this level already exists for this item.');
+              }
+            }
+            break;
+          case 'P2003': // Foreign key constraint violation
+            throw new ConflictException('Foreign key constraint failed.');
+          case 'P2025': // Record not found
+            throw new NotFoundException('The record you are trying to update or delete does not exist.');
+          default:
+            console.log(error);
+            throw new Error('An unexpected error occurred.');
+        }
+      } else {
+        console.log(error);
+        throw new Error('An unexpected error occurred.');
       }
-      throw error;
     }
   }
 
@@ -81,6 +136,8 @@ export class ItemsService {
   async findAllItems() {
     return this.prisma.items.findMany({
       include: {
+        discounts: true,
+        services: true,
         unitOfMeasure: true,
         purchaseUnitOfMeasure: true,
         machine: true,
@@ -89,7 +146,16 @@ export class ItemsService {
   }
 
   async findOne(id: string) {
-    const item = await this.prisma.items.findUnique({ where: { id } });
+    const item = await this.prisma.items.findUnique({
+       where: { id },
+       include: {
+         discounts: true,
+         services: true,
+         unitOfMeasure: true,
+         purchaseUnitOfMeasure: true,
+         machine: true,
+       }
+     });
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
@@ -101,7 +167,7 @@ export class ItemsService {
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
-
+  
     const updateData: Prisma.itemsUpdateInput = {
       name: updateItemDto.name,
       description: updateItemDto.description,
@@ -116,18 +182,69 @@ export class ItemsService {
       unitOfMeasure: updateItemDto.unitOfMeasureId ? { connect: { id: updateItemDto.unitOfMeasureId } } : undefined,
       purchaseUnitOfMeasure: updateItemDto.purchaseUnitOfMeasureId ? { connect: { id: updateItemDto.purchaseUnitOfMeasureId } } : undefined,
       machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
+      // Delete all existing services and discounts before adding/upserting
+      services: {
+        deleteMany: {},  // This deletes all existing services
+        upsert: (updateItemDto.services || []).map(service => ({
+          where: { id: service.id || '' },  // Ensure ID for existing service
+          update: {
+            name: service.name || 'Default Name',
+            description: service.description || '',
+            status: service.status ?? true,
+            sellingPrice: service.sellingPrice ?? 0,
+          },
+          create: {
+            name: service.name || 'Default Name',
+            description: service.description || '',
+            status: service.status ?? true,
+            sellingPrice: service.sellingPrice ?? 0,
+          },
+        })),
+      },
+      discounts: {
+        deleteMany: {},  // This deletes all existing discounts
+        upsert: (updateItemDto.discounts || []).map(discount => ({
+          where: { id: discount.id || '' },  // Ensure ID for existing discount
+          update: {
+            level: discount.level,
+            quantity: discount.quantity ?? 0,
+            percentage: discount.percentage ?? 0,
+          },
+          create: {
+            level: discount.level ?? 0,
+            quantity: discount.quantity ?? 0,
+            percentage: discount.percentage ?? 0,
+          },
+        })),
+      },
     };
-
-    return this.prisma.items.update({
-      where: { id },
-      data: updateData,
-      include: {
-        unitOfMeasure: true,
-        purchaseUnitOfMeasure: true,
-        machine: true,
+  
+    try {
+      return await this.prisma.items.update({
+        where: { id },
+        data: updateData,
+        include: {
+          discounts: true,
+          services: true,
+          unitOfMeasure: true,
+          purchaseUnitOfMeasure: true,
+          machine: true,
+        },
+      });
+    } catch (error) {
+      if (error.code === 'P2002') { // Prisma unique constraint error code
+        throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-    });
+      else if (error.code === 'P2003') {
+        throw new ConflictException('Foreign key constraint failed.');
+      } else if (error instanceof Prisma.PrismaClientValidationError) {
+        throw new BadRequestException(`Validation error: ${error.message}`);
+      } else {
+        throw new Error('An unexpected error occurred.');
+      }
+    }
   }
+  
 
   async remove(id: string) {
     const item = await this.prisma.items.findUnique({ where: { id } });
@@ -135,7 +252,13 @@ export class ItemsService {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
     try {
-      return await this.prisma.items.delete({ where: { id } });
+      return await this.prisma.items.delete({
+        where: { id },
+        include: {
+          services: true,
+          discounts: true
+        }
+      });
     } catch (error) {
       if (error.code === 'P2003') { // P2003 is Prisma's foreign key constraint error code
         throw new BadRequestException('Cannot delete item due to existing dependencies. Please remove associated data first.');
