@@ -88,6 +88,7 @@ model items {
   initial_stock           Int
   updated_initial_stock   Int
   machineId               String
+  unitCategoryId          String?
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
   can_be_purchased        Boolean         @default(true)
@@ -102,6 +103,7 @@ model items {
   purchaseUnitOfMeasure   UOM?            @relation("ItemPurchaseUnitOfMeasure", fields: [purchaseUnitOfMeasureId], references: [id])
   saleUnitOfMeasure       UOM?            @relation("ItemSalesUnitOfMeasure", fields: [saleUnitOfMeasureId], references: [id])
   unitOfMeasure           UOM?            @relation("ItemUnitOfMeasure", fields: [unitOfMeasureId], references: [id])
+  unitCategory            UnitCategory?   @relation("UnitCategoryToItems", fields: [unitCategoryId], references: [id])
   attributes              Attribute[]
   purchases               PurchaseItems[] @relation("PurchaseItemsForItem")
   sales                   SaleItems[]     @relation("SaleItemsForItem")
@@ -252,7 +254,8 @@ model UnitCategory {
   constantValue Float
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  units         UOM[]
+  items         items[]  @relation("UnitCategoryToItems") // One-to-many relation
+  units         UOM[]    @relation("UnitCategoryToUOMs")   // One-to-many relation to UOMs
 }
 
 model UOM {
@@ -264,7 +267,7 @@ model UOM {
   unitCategoryId String
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  unitCategory   UnitCategory @relation(fields: [unitCategoryId], references: [id])
+  unitCategory   UnitCategory @relation("UnitCategoryToUOMs", fields: [unitCategoryId], references: [id], onDelete: Cascade)
   purchaseItems  items[]      @relation("ItemPurchaseUnitOfMeasure")
   saleItems      items[]      @relation("ItemSalesUnitOfMeasure")
   items          items[]      @relation("ItemUnitOfMeasure")

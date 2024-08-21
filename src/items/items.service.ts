@@ -49,6 +49,7 @@ export class ItemsService {
           unitOfMeasure: createItemDto.unitOfMeasureId ? { connect: { id: createItemDto.unitOfMeasureId } } : undefined,
           purchaseUnitOfMeasure: createItemDto.purchaseUnitOfMeasureId ? { connect: { id: createItemDto.purchaseUnitOfMeasureId } } : undefined,
           machine: { connect: { id: createItemDto.machineId } },
+          unitCategory: createItemDto.unitCategoryId ? { connect: { id: createItemDto.unitCategoryId } } : undefined, // Connect unitCategory
           services: {
             create: createItemDto.services?.map(service => ({
               name: service.name,
@@ -70,7 +71,8 @@ export class ItemsService {
           purchaseUnitOfMeasure: true,
           machine: true,
           services: true,
-          discounts: true
+          discounts: true,
+          unitCategory: true
         }
       });
     } catch (error) {
@@ -114,6 +116,9 @@ export class ItemsService {
             { description: { contains: search, mode: 'insensitive' } }
           ]
         } : {},
+        include: {
+
+        },
         orderBy: {
           createdAt: 'desc'
         }
@@ -124,8 +129,8 @@ export class ItemsService {
             { name: { contains: search, mode: 'insensitive' } },
             { description: { contains: search, mode: 'insensitive' } }
           ]
-        } : {}
-      })
+        } : {},
+      }),
     ]);
     return {
       items,
@@ -141,6 +146,7 @@ export class ItemsService {
         unitOfMeasure: true,
         purchaseUnitOfMeasure: true,
         machine: true,
+        unitCategory: true
       }
     })
   }
@@ -154,6 +160,7 @@ export class ItemsService {
          unitOfMeasure: true,
          purchaseUnitOfMeasure: true,
          machine: true,
+         unitCategory: true
        }
      });
     if (!item) {
@@ -182,6 +189,7 @@ export class ItemsService {
       unitOfMeasure: updateItemDto.unitOfMeasureId ? { connect: { id: updateItemDto.unitOfMeasureId } } : undefined,
       purchaseUnitOfMeasure: updateItemDto.purchaseUnitOfMeasureId ? { connect: { id: updateItemDto.purchaseUnitOfMeasureId } } : undefined,
       machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
+      unitCategory: updateItemDto.unitCategoryId ? { connect: { id: updateItemDto.unitCategoryId } } : undefined, // Connect unitCategory
       // Delete all existing services and discounts before adding/upserting
       services: {
         deleteMany: {},  // This deletes all existing services
@@ -229,6 +237,7 @@ export class ItemsService {
           unitOfMeasure: true,
           purchaseUnitOfMeasure: true,
           machine: true,
+          unitCategory: true
         },
       });
     } catch (error) {

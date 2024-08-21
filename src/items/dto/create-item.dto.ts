@@ -48,6 +48,8 @@ export class CreateItemDto {
     machineId: string;
 
     quantity: number;
-    services: CreateServiceDto[];
-    discounts: CreateDiscountDto[];
+    services?: CreateServiceDto[];
+    discounts?: CreateDiscountDto[];
+
+    unitCategoryId?: string;
 }

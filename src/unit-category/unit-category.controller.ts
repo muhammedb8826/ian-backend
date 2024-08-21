@@ -9,7 +9,8 @@ export class UnitCategoryController {
 
   @Post()
   create(@Body() createUnitCategoryDto: CreateUnitCategoryDto) {
-    return this.unitCategoryService.create(createUnitCategoryDto);
+    const { itemIds, ...categoryData } = createUnitCategoryDto;
+    return this.unitCategoryService.create(categoryData, itemIds);
   }
 
   @Get()
@@ -31,7 +32,8 @@ export class UnitCategoryController {
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUnitCategoryDto: UpdateUnitCategoryDto) {
-    return this.unitCategoryService.update(id, updateUnitCategoryDto);
+    const { itemIds, ...categoryData } = updateUnitCategoryDto;
+    return this.unitCategoryService.update(id, categoryData, itemIds);
   }
 
   @Delete(':id')

@@ -12,4 +12,6 @@ export class CreateUnitCategoryDto {
 
     constantValue: number
 
+    itemIds?: string[]
+
 }
