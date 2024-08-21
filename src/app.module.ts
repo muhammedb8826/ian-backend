@@ -25,8 +25,9 @@ import { PurchaseItemNotesModule } from './purchase-item-notes/purchase-item-not
 import { SalesModule } from './sales/sales.module';
 import { SaleItemsModule } from './sale-items/sale-items.module';
 import { SaleItemNotesModule } from './sale-item-notes/sale-item-notes.module';
+import { OperatorStockModule } from './operator-stock/operator-stock.module';
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule, SalesModule, SaleItemsModule, SaleItemNotesModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule, SalesModule, SaleItemsModule, SaleItemNotesModule, OperatorStockModule],
   providers: [
     {
       provide: APP_GUARD,

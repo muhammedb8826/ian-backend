@@ -71,7 +71,10 @@ export class UomService {
 
   async findOne(id: string) {
     return this.prisma.uOM.findUnique({
-      where: {id}
+      where: {id},
+      include: {
+        unitCategory: true
+      }
     });
   }
 

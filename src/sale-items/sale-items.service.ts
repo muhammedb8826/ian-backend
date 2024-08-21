@@ -48,9 +48,54 @@ export class SaleItemsService {
         // Calculate the new quantity based on the status
         let newQuantity = relatedItem.quantity;
         if (updateSaleItemDto.status === 'Cancelled') {
-          newQuantity = relatedItem.quantity - saleItem.quantity;
-        } else if (updateSaleItemDto.status === 'Sold') {
           newQuantity = relatedItem.quantity + saleItem.quantity;
+
+          // Check if operator stock exists and reduce its quantity
+          const operatorStock = await prisma.operatorStock.findFirst({
+            where: { itemId: relatedItem.id, status: 'Active' }, // Adjust this query to match your conditions
+          });
+
+          if (operatorStock) {
+            // Decrement the operator stock quantity
+            await prisma.operatorStock.update({
+              where: { id: operatorStock.id },
+              data: {
+                quantity: operatorStock.quantity - saleItem.quantity,
+              },
+            });
+          }
+
+
+        } else if (updateSaleItemDto.status === 'Stocked-out') {
+          newQuantity = relatedItem.quantity - saleItem.quantity;
+
+          // Check if operator stock exists
+          const operatorStock = await prisma.operatorStock.findFirst({
+            where: { itemId: relatedItem.id, status: 'Active' }, // Adjust this query to match your conditions
+          });
+
+          if (operatorStock) {
+            // Increment the operator stock quantity
+            await prisma.operatorStock.update({
+              where: { id: operatorStock.id },
+              data: {
+                quantity: operatorStock.quantity + saleItem.quantity,
+              },
+            });
+          } else {
+            // Create new operator stock if it doesn't exist
+            await prisma.operatorStock.create({
+              data: {
+                itemId: relatedItem.id,
+                unitId: saleItem.unitId,
+                quantity: saleItem.quantity,
+                unitPrice: relatedItem.selling_price, // Use the selling price of the item
+                amount: relatedItem.selling_price * saleItem.quantity,
+                description: `Stocked-out for Sale Item ${saleItem.id}`,
+                status: 'Active', // Adjust the status as needed
+              },
+            });
+          }
         }
 
         // Ensure that quantity cannot drop below zero
@@ -108,10 +153,27 @@ export class SaleItemsService {
 
         return updatedSaleItem;
       } catch (error) {
-        if (error.code === 'P2002') { // Unique constraint error code
-          throw new ConflictException('Unique constraint failed. Please check your data.');
+        console.error('Error during Sale Item update:', error);
+
+        // Customize the error response to match frontend expectations
+        if (error instanceof ConflictException) {
+          throw new ConflictException({
+            statusCode: 409,
+            message: error.message,
+            error: 'Conflict',
+          });
         }
-        throw new Error('An unexpected error occurred.');
+
+
+        if (error.code === 'P2002') {
+          throw new ConflictException({
+            statusCode: 409,
+            message: 'Unique constraint failed. Please check your data.',
+            error: 'Conflict',
+          });
+        }
+
+        throw new Error('An unexpected error occurred: ' + error.message);
       }
     });
   }

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,22 +8,17 @@ import { services } from '@prisma/client';
 export class ServicesService {
   constructor(private prisma: PrismaService){}
   async create(createServiceDto: CreateServiceDto): Promise<services> {
-    const normalizedAttribute = createServiceDto.name.toLowerCase();
-    const existingByName = await this.prisma.services.findUnique({
-      where: {
-        name: normalizedAttribute
-      }
-    })
-
-    if(existingByName) {
-      throw new ConflictException('Service already exists')
-    }
-
     return await this.prisma.services.create({
       data: {
         name: createServiceDto.name,
         description: createServiceDto.description,
-        status: createServiceDto.status
+        status: createServiceDto.status,
+        sellingPrice: createServiceDto.sellingPrice,
+        item: {
+          connect: {
+            id: createServiceDto.itemId
+          }
+        }
       }
     })
   }
@@ -43,6 +38,14 @@ export class ServicesService {
       services,
       total
     }
+  }
+
+  async findAllServices() {
+    return this.prisma.services.findMany({
+      include: {
+        item: true
+      }
+    })
   }
 
   findOne(id: string) {
