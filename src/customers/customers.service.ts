@@ -7,35 +7,18 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class CustomersService {
   constructor(private prisma: PrismaService){}
   async create(createCustomerDto: CreateCustomerDto) {
-   const normalizedAttribute = createCustomerDto.fullName.toLowerCase();
-    const existingByName = this.prisma.customers.findUnique({
+    const customer = await this.prisma.customers.findUnique({
       where: {
-        fullName: normalizedAttribute
-      }
-    })
+        fullName_phone_email: {
+          fullName: createCustomerDto.fullName,
+          email: createCustomerDto.email,
+          phone: createCustomerDto.phone,
+        },
+      },
+    });
 
-    if(existingByName) {
+   if(customer) {
       throw new ConflictException('Customer already exists')
-    }
-
-    const existingByEmail = this.prisma.customers.findUnique({
-      where: {
-        email: createCustomerDto.email
-      }
-    })
-
-    if(existingByEmail) {
-      throw new ConflictException('Customer email already exists')
-    }
-
-    const existingByPhone = this.prisma.customers.findUnique({
-      where: {
-        phone: createCustomerDto.phone
-      }
-    })
-
-    if(existingByPhone) {
-      throw new ConflictException('Customer phone already exists')
     }
 
     return this.prisma.customers.create({
