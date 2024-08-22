@@ -5,38 +5,31 @@ import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class SalesPartnersService {
-  constructor(private prisma: PrismaService){}
- async create(createSalesPartnerDto: CreateSalesPartnerDto) {
-    const normalizedAttribute = createSalesPartnerDto.fullName.toLowerCase();
-    const existingByName = this.prisma.salesPartners.findUnique({
-      where: {
-        fullName: normalizedAttribute
-      }
-    })
+  constructor(private prisma: PrismaService) { }
+  async create(createSalesPartnerDto: CreateSalesPartnerDto) {
 
-    if(existingByName) {
-      throw new ConflictException('Sales Partner already exists')
-    }
-   
-    const existingByEmail = this.prisma.salesPartners.findUnique({
-      where: {
-        email: createSalesPartnerDto.email
-      }
-    })
-
-    if(existingByEmail) {
-      throw new ConflictException('Sales Partner email already exists')
-    }
-
-    const existingByPhone = this.prisma.salesPartners.findUnique({
+    const existingCustomerByPhone = await this.prisma.salesPartners.findUnique({
       where: {
         phone: createSalesPartnerDto.phone
       }
     })
 
-    if(existingByPhone) {
-      throw new ConflictException('Sales Partner phone already exists')
+    if (existingCustomerByPhone) {
+      throw new ConflictException('Sales Partner with this phone number already exists')
     }
+
+    if (createSalesPartnerDto.email) {
+      const existingCustomerByEmail = await this.prisma.salesPartners.findUnique({
+        where: {
+          email: createSalesPartnerDto.email
+        }
+      })
+
+      if (existingCustomerByEmail) {
+        throw new ConflictException('Sales Partner with this email already exists')
+      }
+    }
+
 
     return this.prisma.salesPartners.create({
       data: {
@@ -52,7 +45,7 @@ export class SalesPartnersService {
   }
 
   async findAll(skip: number, take: number) {
-    const [salesPartners, total] =await this.prisma.$transaction([
+    const [salesPartners, total] = await this.prisma.$transaction([
       this.prisma.salesPartners.findMany({
         skip: Number(skip),
         take: Number(take),
@@ -69,7 +62,7 @@ export class SalesPartnersService {
     }
   }
 
-  async findAllSalesPartners(search?: string) {  
+  async findAllSalesPartners(search?: string) {
     return this.prisma.salesPartners.findMany({
       where: search ? {
         OR: [
@@ -95,7 +88,7 @@ export class SalesPartnersService {
           }
         ],
       }
-      : {},
+        : {},
       orderBy: {
         createdAt: 'desc'
       }
@@ -103,22 +96,51 @@ export class SalesPartnersService {
 
   }
 
-  findOne(id: string) {
-   return this.prisma.salesPartners.findUnique({
-      where: {id}
+  async findOne(id: string) {
+    return this.prisma.salesPartners.findUnique({
+      where: { id }
     });
   }
 
-  update(id: string, updateSalesPartnerDto: UpdateSalesPartnerDto) {
+  async update(id: string, updateSalesPartnerDto: UpdateSalesPartnerDto) {
+
+    const currentSalesPartner = await this.prisma.salesPartners.findUnique({
+      where: { id },
+    });
+
+    if (!currentSalesPartner) {
+      throw new ConflictException('Sales Partner not found')
+    }
+
+    if (updateSalesPartnerDto.email && updateSalesPartnerDto.email !== currentSalesPartner.email) {
+      const existingPartnerWithEmail = await this.prisma.salesPartners.findUnique({
+        where: { email: updateSalesPartnerDto.email },
+      });
+  
+      if (existingPartnerWithEmail) {
+        throw new ConflictException('Email already in use by another sales partner');
+      }
+    }
+
+    if (updateSalesPartnerDto.phone && updateSalesPartnerDto.phone !== currentSalesPartner.phone) {
+      const existingPartnerWithPhone = await this.prisma.salesPartners.findUnique({
+        where: { phone: updateSalesPartnerDto.phone },
+      });
+  
+      if (existingPartnerWithPhone) {
+        throw new ConflictException('Phone number already in use by another sales partner');
+      }
+    }
+
     return this.prisma.salesPartners.update({
-      where: {id},
+      where: { id },
       data: updateSalesPartnerDto
     })
   }
 
-  remove(id: string) {
+  async remove(id: string) {
     return this.prisma.salesPartners.delete({
-      where: {id}
+      where: { id }
     })
   }
 }

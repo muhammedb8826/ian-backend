@@ -7,18 +7,28 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class CustomersService {
   constructor(private prisma: PrismaService){}
   async create(createCustomerDto: CreateCustomerDto) {
-    const customer = await this.prisma.customers.findUnique({
+     // Check for existing customer by phone number
+     const existingCustomerByPhone = await this.prisma.customers.findUnique({
       where: {
-        fullName_phone_email: {
-          fullName: createCustomerDto.fullName,
-          email: createCustomerDto.email,
-          phone: createCustomerDto.phone,
-        },
+        phone: createCustomerDto.phone,
       },
     });
 
-   if(customer) {
-      throw new ConflictException('Customer already exists')
+    if (existingCustomerByPhone) {
+      throw new ConflictException('Customer with this phone number already exists');
+    }
+
+    // Check for existing customer by email, but only if email is provided
+    if (createCustomerDto.email) {
+      const existingCustomerByEmail = await this.prisma.customers.findUnique({
+        where: {
+          email: createCustomerDto.email,
+        },
+      });
+
+      if (existingCustomerByEmail) {
+        throw new ConflictException('Customer with this email already exists');
+      }
     }
 
     return this.prisma.customers.create({
@@ -84,6 +94,37 @@ export class CustomersService {
   }
 
   async update(id: string, updateCustomerDto: UpdateCustomerDto) {
+    
+    // Check for existing customer by phone number
+    const existingCustomerByPhone = await this.prisma.customers.findFirst({
+      where: {
+        phone: updateCustomerDto.phone,
+        NOT: {
+          id
+        }
+      }
+    });
+
+    if (existingCustomerByPhone) {
+      throw new ConflictException('Customer with this phone number already exists');
+    }
+
+    // Check for existing customer by email, but only if email is provided
+    if (updateCustomerDto.email) {
+      const existingCustomerByEmail = await this.prisma.customers.findFirst({
+        where: {
+          email: updateCustomerDto.email,
+          NOT: {
+            id
+          }
+        }
+      });
+
+      if (existingCustomerByEmail) {
+        throw new ConflictException('Customer with this email already exists');
+      }
+    }
+
     return this.prisma.customers.update({
       where: {
         id
