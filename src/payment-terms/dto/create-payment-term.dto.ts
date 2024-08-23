@@ -7,5 +7,5 @@ export class CreatePaymentTermDto {
     remainingAmount: number
     status: string
     forcePayment: boolean;
-    transactions: CreatePaymentTransactionDto[]
+    transactions?: CreatePaymentTransactionDto[];
 }

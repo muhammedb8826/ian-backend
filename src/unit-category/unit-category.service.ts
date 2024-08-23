@@ -6,7 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Injectable()
 export class UnitCategoryService {
   constructor(private prisma: PrismaService){}
-  async create(createUnitCategoryDto: CreateUnitCategoryDto, itemIds: string[]) {
+  async create(createUnitCategoryDto: CreateUnitCategoryDto) {
 
   const existingByName = await this.prisma.unitCategory.findUnique({
     where: {
@@ -24,7 +24,6 @@ export class UnitCategoryService {
         description: createUnitCategoryDto.description,
         constant: createUnitCategoryDto.constant,
         constantValue: createUnitCategoryDto.constantValue,
-        items: itemIds.length > 0 ? { connect: itemIds.map(id => ({ id })) } : undefined
       }
     })
   }
@@ -69,7 +68,7 @@ export class UnitCategoryService {
     });
   }
 
-  async update(id: string, updateUnitCategoryDto: UpdateUnitCategoryDto, itemIds: string[]) {
+  async update(id: string, updateUnitCategoryDto: UpdateUnitCategoryDto) {
     return this.prisma.unitCategory.update({
       where: {id},
       data: {
@@ -77,7 +76,6 @@ export class UnitCategoryService {
         description: updateUnitCategoryDto.description,
         constant: updateUnitCategoryDto.constant,
         constantValue: updateUnitCategoryDto.constantValue,
-        items: itemIds.length > 0 ? { set: itemIds.map(id => ({ id })) } : undefined
       },
       include: {
         units: true,

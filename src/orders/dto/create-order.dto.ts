@@ -5,7 +5,8 @@ import { CreatePaymentTermDto } from "src/payment-terms/dto/create-payment-term.
 import { CreateSalesPartnerDto } from "src/sales-partners/dto/create-sales-partner.dto";
 
 export class CreateOrderDto {
-    series: string;
+  id: string;
+  series: string;
   customerId: string;
   status: string;
   orderDate: Date;

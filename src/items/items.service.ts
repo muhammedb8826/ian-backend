@@ -146,7 +146,11 @@ export class ItemsService {
         unitOfMeasure: true,
         purchaseUnitOfMeasure: true,
         machine: true,
-        unitCategory: true
+        unitCategory: {
+          include: {
+            units: true
+          }
+        }
       }
     })
   }
@@ -160,7 +164,11 @@ export class ItemsService {
          unitOfMeasure: true,
          purchaseUnitOfMeasure: true,
          machine: true,
-         unitCategory: true
+         unitCategory: {
+          include: {
+            units: true
+          }
+        }
        }
      });
     if (!item) {

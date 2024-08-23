@@ -322,7 +322,7 @@ model OrderItems {
   serviceId     String
   width         Float?
   height        Float?
-  discount      Float
+  discount      Float?
   level         Int
   totalAmount   Float
   adminApproval Boolean

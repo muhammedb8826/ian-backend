@@ -1,3 +1,5 @@
+import { IsOptional } from "class-validator";
+
 export class CreateOrderItemDto {
     id: string;
     orderId: string;
@@ -5,7 +7,11 @@ export class CreateOrderItemDto {
     serviceId: string;
     width?: number;
     height?: number;
+
+    @IsOptional()
     discount?: number;
+
+    
     level: number;
     totalAmount: number;
     adminApproval: boolean;
