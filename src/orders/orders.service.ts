@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -13,8 +14,9 @@ export class OrdersService {
           series: createOrderDto.series,
           customerId: createOrderDto.customerId,
           status: createOrderDto.status,
-          orderDate: createOrderDto.orderDate,
-          deliveryDate: createOrderDto.deliveryDate,
+          orderDate: new Date(createOrderDto.orderDate),
+          deliveryDate: new Date(createOrderDto.deliveryDate),
+          orderSource: createOrderDto.orderSource,
           totalAmount: createOrderDto.totalAmount,
           tax: createOrderDto.tax,
           grandTotal: createOrderDto.grandTotal,
@@ -24,13 +26,13 @@ export class OrdersService {
           commissionId: createOrderDto.commissionId,
           fileNames: createOrderDto.fileNames,
           adminApproval: createOrderDto.adminApproval,
-          salesPartnersId: createOrderDto.salesPartnersId,
+          salesPartnersId: createOrderDto.salesPartnersId || null,
           orderItems: {
             create: createOrderDto.orderItems?.map((item) => ({
               itemId: item.itemId,
               serviceId: item.serviceId,
-              width: item.width,
-              height: item.height,
+              width: parseFloat(item.width.toString()),
+              height: parseFloat(item.height.toString()),
               discount: item.discount,
               level: item.level,
               totalAmount: item.totalAmount,
@@ -40,6 +42,7 @@ export class OrdersService {
               unitPrice: item.unitPrice,
               description: item.description,
               status: item.status,
+              isDiscounted: item.isDiscounted,
             })) || [],
           },
           paymentTerm: createOrderDto.paymentTerm ? {
@@ -64,8 +67,7 @@ export class OrdersService {
           commission: createOrderDto.commission ? {
             create: {
               salesPartnerId: createOrderDto.commission.salesPartnerId,
-              amount: createOrderDto.commission.amount,
-              description: createOrderDto.commission.description,
+              totalAmount: createOrderDto.commission.totalAmount,
               transactions: {
                 create: createOrderDto.commission.transactions?.map((transaction) => ({
                   date: transaction.date,
@@ -84,7 +86,20 @@ export class OrdersService {
         },
       })
     } catch (error) {
+      console.error("Error creating order:", error);
 
+      // Check if it's a Prisma error
+      if (error.code === 'P2002') {
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+
+      // Log the error details for better debugging
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Prisma error details:', error.meta);
+      }
+
+      // Throw a more informative error for better feedback
+      throw new Error(`An unexpected error occurred: ${error.message}`);
     }
   }
 
@@ -179,6 +194,7 @@ export class OrdersService {
               unitPrice: item.unitPrice,
               description: item.description,
               status: item.status,
+              isDiscounted: item.isDiscounted,
             },
           })) || [],
         },
@@ -212,8 +228,7 @@ export class OrdersService {
             where: { id: updateOrderDto.commission.id },
             data: {
               salesPartnerId: updateOrderDto.commission.salesPartnerId,
-              amount: updateOrderDto.commission.amount,
-              description: updateOrderDto.commission.description,
+              totalAmount: updateOrderDto.commission.totalAmount,
               transactions: {
                 update: updateOrderDto.commission.transactions?.map((transaction) => ({
                   where: { id: transaction.id },

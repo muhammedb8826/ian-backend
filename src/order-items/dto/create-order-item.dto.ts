@@ -19,5 +19,6 @@ export class CreateOrderItemDto {
     quantity: number;
     unitPrice: number;
     description?: string;
+    isDiscounted: boolean;
     status: string;
 }

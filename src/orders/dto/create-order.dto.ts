@@ -10,6 +10,7 @@ export class CreateOrderDto {
   customerId: string;
   status: string;
   orderDate: Date;
+  orderSource: string;
   deliveryDate: Date;
   totalAmount: number;
   tax: number;

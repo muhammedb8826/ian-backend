@@ -296,6 +296,7 @@ model orders {
   orderDate     DateTime       @default(now())
   deliveryDate  DateTime
   totalAmount   Float
+  orderSource   String
   tax           Float
   grandTotal    Float
   totalQuantity Int
@@ -330,6 +331,7 @@ model OrderItems {
   quantity      Int
   unitPrice     Float
   description   String?
+  isDiscounted  Boolean
   status        String
   order         orders  @relation(fields: [orderId], references: [id]) // Relation back to orders
 
@@ -400,8 +402,7 @@ model commissions {
   id             String                   @id @default(cuid())
   orderId        String                   @unique // One-to-one relation with orders, must be unique
   salesPartnerId String
-  amount         Float
-  description    String?
+  totalAmount         Float
   order          orders                   @relation(fields: [orderId], references: [id]) // Relation back to orders (fields defined here)
   salesPartner   salesPartners            @relation(fields: [salesPartnerId], references: [id]) // Relation to salesPartners
   transactions   commissionTransactions[] // One-to-many relation with commissionTransactions
