@@ -27,6 +27,9 @@ export class OrdersService {
           fileNames: createOrderDto.fileNames,
           adminApproval: createOrderDto.adminApproval,
           salesPartnersId: createOrderDto.salesPartnersId || null,
+
+          // Order Items
+
           orderItems: {
             create: createOrderDto.orderItems?.map((item) => ({
               itemId: item.itemId,
@@ -45,6 +48,10 @@ export class OrdersService {
               isDiscounted: item.isDiscounted,
             })) || [],
           },
+
+
+           // Payment Term and Transactions
+
           paymentTerm: createOrderDto.paymentTerm ? {
             create: {
               totalAmount: createOrderDto.paymentTerm.totalAmount,
@@ -64,6 +71,11 @@ export class OrdersService {
               }
             },
           } : undefined,
+
+
+          // Commission and Transactions
+
+
           commission: createOrderDto.commission ? {
             create: {
               salesPartnerId: createOrderDto.commission.salesPartnerId,
@@ -73,7 +85,6 @@ export class OrdersService {
                   date: transaction.date,
                   amount: transaction.amount,
                   percentage: transaction.percentage,
-                  commissionId: createOrderDto.commission.id,
                   paymentMethod: transaction.paymentMethod,
                   reference: transaction.reference,
                   status: transaction.status,

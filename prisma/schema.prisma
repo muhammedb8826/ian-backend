@@ -112,6 +112,7 @@ model items {
   operatorStock           OperatorStock[]
   discounts               discounts[]     @relation("ItemDiscounts")
   services                services[]      @relation("ItemServices") // One-to-many relation
+  OrderItems              OrderItems[]
 }
 
 model purchases {
@@ -335,15 +336,16 @@ model OrderItems {
   status        String
   order         orders  @relation(fields: [orderId], references: [id]) // Relation back to orders
 
+  item      items    @relation(fields: [itemId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model customers {
   id          String   @id @default(cuid())
-  fullName    String   
-  email       String? @unique
-  phone       String  @unique 
+  fullName    String
+  email       String?  @unique
+  phone       String   @unique
   company     String?
   address     String
   description String?
@@ -355,7 +357,7 @@ model customers {
 
 model salesPartners {
   id          String        @id @default(cuid())
-  fullName    String       
+  fullName    String
   email       String?       @unique
   phone       String        @unique
   company     String?
@@ -392,7 +394,7 @@ model paymentTransactions {
   amount        Float
   status        String
   description   String?
-  paymentTerm   paymentTerms @relation(fields: [paymentTermId], references: [id]) // Relation back to paymentTerms
+  paymentTerm   paymentTerms @relation(fields: [paymentTermId], references: [id], onDelete: Cascade) // Relation back to paymentTerms
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -402,7 +404,7 @@ model commissions {
   id             String                   @id @default(cuid())
   orderId        String                   @unique // One-to-one relation with orders, must be unique
   salesPartnerId String
-  totalAmount         Float
+  totalAmount    Float
   order          orders                   @relation(fields: [orderId], references: [id]) // Relation back to orders (fields defined here)
   salesPartner   salesPartners            @relation(fields: [salesPartnerId], references: [id]) // Relation to salesPartners
   transactions   commissionTransactions[] // One-to-many relation with commissionTransactions
@@ -422,7 +424,7 @@ model commissionTransactions {
   reference     String
   status        String
   description   String?
-  commission    commissions @relation(fields: [commissionId], references: [id]) // Relation back to commissions
+  commission    commissions @relation(fields: [commissionId], references: [id], onDelete: Cascade) // Relation back to commissions
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

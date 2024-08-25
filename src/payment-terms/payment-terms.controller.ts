@@ -19,16 +19,16 @@ export class PaymentTermsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.paymentTermsService.findOne(+id);
+    return this.paymentTermsService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updatePaymentTermDto: UpdatePaymentTermDto) {
-    return this.paymentTermsService.update(+id, updatePaymentTermDto);
+    return this.paymentTermsService.update(id, updatePaymentTermDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.paymentTermsService.remove(+id);
+    return this.paymentTermsService.remove(id);
   }
 }
