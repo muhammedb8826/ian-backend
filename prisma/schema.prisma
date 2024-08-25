@@ -55,18 +55,29 @@ model UserMachine {
   @@unique([userId, machineId])
 }
 
-model services {
-  id           String   @id @default(cuid())
-  name         String
-  itemId       String
+model Pricing {
+  id        String   @id @default(cuid())
+  itemId    String
+  serviceId String
   sellingPrice Float
-  status       Boolean  @default(true)
-  description  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  item         items    @relation("ItemServices", fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  service   services @relation(fields: [serviceId], references: [id])
+  item      items    @relation(fields: [itemId], references: [id])
 
-  @@unique([itemId, name])
+  @@unique([itemId, serviceId])
+}
+
+model services {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  itemId       String
+  status       Boolean       @default(true)
+  description  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  items        items[]
+  pricing  Pricing[]
 }
 
 model discounts {
@@ -111,8 +122,9 @@ model items {
   sales                   SaleItems[]     @relation("SaleItemsForItem")
   operatorStock           OperatorStock[]
   discounts               discounts[]     @relation("ItemDiscounts")
-  services                services[]      @relation("ItemServices") // One-to-many relation
+  services                services[]
   OrderItems              OrderItems[]
+  pricing                 Pricing[]
 }
 
 model purchases {
@@ -262,8 +274,8 @@ model UnitCategory {
 
 model UOM {
   id                String          @id @default(cuid())
-  name              String          
-  abbreviation      String          
+  name              String
+  abbreviation      String
   conversionRate    Float
   baseUnit          Boolean         @default(false)
   unitCategoryId    String
@@ -276,7 +288,7 @@ model UOM {
   saleItemsUnit     SaleItems[]     @relation("ItemSalesUnitOfMeasure")
   purchaseItemsUnit PurchaseItems[] @relation("ItemPurchasesUnitOfMeasure")
 
-   @@unique([name, abbreviation, unitCategoryId])
+  @@unique([name, abbreviation, unitCategoryId])
 }
 
 model Attribute {
@@ -342,7 +354,7 @@ model OrderItems {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-   @@unique([orderId, itemId, serviceId])
+  @@unique([orderId, itemId, serviceId])
 }
 
 model customers {
