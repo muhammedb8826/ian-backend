@@ -9,7 +9,7 @@ export class PricingService {
   async create(createPricingDto: CreatePricingDto) {
     const { itemId, serviceId } = createPricingDto;
 
-    const existing = this.prisma.pricing.findUnique({
+    const existing = await this.prisma.pricing.findUnique({
       where: { itemId_serviceId: { itemId, serviceId } }
     });
 
@@ -57,7 +57,7 @@ export class PricingService {
 
   async update(id: string, updatePricingDto: UpdatePricingDto) {
  
-   const existing = this.prisma.pricing.findUnique({
+   const existing = await this.prisma.pricing.findUnique({
       where: { id }
     });
 
@@ -72,7 +72,7 @@ export class PricingService {
   }
 
   async remove(id: string) {
-    const existing = this.prisma.pricing.findUnique({
+    const existing = await this.prisma.pricing.findUnique({
       where: { id }
     });
 

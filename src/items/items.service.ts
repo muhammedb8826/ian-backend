@@ -50,14 +50,6 @@ export class ItemsService {
           purchaseUnitOfMeasure: createItemDto.purchaseUnitOfMeasureId ? { connect: { id: createItemDto.purchaseUnitOfMeasureId } } : undefined,
           machine: { connect: { id: createItemDto.machineId } },
           unitCategory: createItemDto.unitCategoryId ? { connect: { id: createItemDto.unitCategoryId } } : undefined, // Connect unitCategory
-          services: {
-            create: createItemDto.services?.map(service => ({
-              name: service.name,
-              description: service.description || '',
-              status: service.status,
-              sellingPrice: service.sellingPrice || 0,
-            })) || []
-          },
           discounts: {
             create: createItemDto.discounts?.map(discount => ({
               level: discount.level,
@@ -198,25 +190,6 @@ export class ItemsService {
       purchaseUnitOfMeasure: updateItemDto.purchaseUnitOfMeasureId ? { connect: { id: updateItemDto.purchaseUnitOfMeasureId } } : undefined,
       machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
       unitCategory: updateItemDto.unitCategoryId ? { connect: { id: updateItemDto.unitCategoryId } } : undefined, // Connect unitCategory
-      // Delete all existing services and discounts before adding/upserting
-      services: {
-        deleteMany: {},  // This deletes all existing services
-        upsert: (updateItemDto.services || []).map(service => ({
-          where: { id: service.id || '' },  // Ensure ID for existing service
-          update: {
-            name: service.name || 'Default Name',
-            description: service.description || '',
-            status: service.status ?? true,
-            sellingPrice: service.sellingPrice ?? 0,
-          },
-          create: {
-            name: service.name || 'Default Name',
-            description: service.description || '',
-            status: service.status ?? true,
-            sellingPrice: service.sellingPrice ?? 0,
-          },
-        })),
-      },
       discounts: {
         deleteMany: {},  // This deletes all existing discounts
         upsert: (updateItemDto.discounts || []).map(discount => ({

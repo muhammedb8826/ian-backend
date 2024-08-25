@@ -1,5 +1,4 @@
 import { IsBoolean, IsInt, IsOptional, IsString } from "class-validator";
-import { CreateServiceDto } from 'src/services/dto/create-service.dto';
 
 class CreateDiscountDto {
     id: string;
@@ -48,7 +47,6 @@ export class CreateItemDto {
     machineId: string;
 
     quantity: number;
-    services?: CreateServiceDto[];
     discounts?: CreateDiscountDto[];
 
     unitCategoryId?: string;

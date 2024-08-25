@@ -8,8 +8,5 @@ export class CreateServiceDto {
     description?: string
 
     status: boolean
-
-    itemId: string
-    sellingPrice: number
     id: string
 }
