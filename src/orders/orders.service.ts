@@ -63,7 +63,7 @@ export class OrdersService {
                   date: transaction.date,
                   paymentMethod: transaction.paymentMethod,
                   reference: transaction.reference,
-                  amount: transaction.amount,
+                  amount: parseFloat(transaction.amount.toString()),
                   status: transaction.status,
                   description: transaction.description,
                   orderId: createOrderDto.id,

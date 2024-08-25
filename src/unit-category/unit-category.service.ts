@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUnitCategoryDto } from './dto/create-unit-category.dto';
 import { UpdateUnitCategoryDto } from './dto/update-unit-category.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -7,47 +7,29 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UnitCategoryService {
   constructor(private prisma: PrismaService){}
   async create(createUnitCategoryDto: CreateUnitCategoryDto) {
+    const { name, description, constant, constantValue } = createUnitCategoryDto;
 
-  const existingByName = await this.prisma.unitCategory.findUnique({
-    where: {
-      name: createUnitCategoryDto.name
-    }
-  })
-
-  if(existingByName) {
-    throw new ConflictException('Unit Category already exists')
-  }
+    const existingByName = await this.prisma.unitCategory.findUnique({ where: { name } });
+    if (existingByName) throw new ConflictException('Unit Category already exists');
 
     return this.prisma.unitCategory.create({
-      data: {
-        name: createUnitCategoryDto.name,
-        description: createUnitCategoryDto.description,
-        constant: createUnitCategoryDto.constant,
-        constantValue: createUnitCategoryDto.constantValue,
-      }
-    })
+      data: { name, description, constant, constantValue }
+    });
   }
 
   async findAll(skip: number, take: number) {
-    const [unitCategory, total] = await this.prisma.$transaction([
+    const [unitCategories, total] = await this.prisma.$transaction([
       this.prisma.unitCategory.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        },
-        include: {
-          items: true,
-          units: true
-        }
+        skip: +skip,
+        take: +take,
+        orderBy: { createdAt: 'desc' },
+        include: { items: true, units: true }
       }),
-      this.prisma.unitCategory.count()
-    ])
-    return {
-      unitCategory,
-      total
-    }
+      this.prisma.unitCategory.count(),
+    ]);
+    return { unitCategories, total };
   }
+
 
   async findAllUnitCategory() {
     return this.prisma.unitCategory.findMany({
@@ -58,35 +40,47 @@ export class UnitCategoryService {
     })
   }
 
-  async findOne(id: string) {
-    return this.prisma.unitCategory.findUnique({
-      where: {id},
-      include: {
-        items: true,
-        units: true
-      }
+ async findOne(id: string) {
+    const unitCategory = await this.prisma.unitCategory.findUnique({
+      where: { id },
+      include: { items: true, units: true },
     });
+    if (!unitCategory) throw new NotFoundException('Unit Category not found');
+    return unitCategory;
   }
 
   async update(id: string, updateUnitCategoryDto: UpdateUnitCategoryDto) {
+    const { name, description, constant, constantValue } = updateUnitCategoryDto;
+
     return this.prisma.unitCategory.update({
-      where: {id},
-      data: {
-        name: updateUnitCategoryDto.name,
-        description: updateUnitCategoryDto.description,
-        constant: updateUnitCategoryDto.constant,
-        constantValue: updateUnitCategoryDto.constantValue,
-      },
-      include: {
-        units: true,
-        items: true
-      }
-    })
+      where: { id },
+      data: { name, description, constant, constantValue },
+      include: { units: true, items: true },
+    });
   }
 
   async remove(id: string) {
-    return this.prisma.unitCategory.delete({
-      where: {id}
-    })
+    const unitCategory = await this.prisma.unitCategory.findUnique({
+      where: { id },
+      include: { items: true, units: true },
+    });
+
+    if (!unitCategory) throw new NotFoundException('Unit Category not found');
+    if (unitCategory.items.length > 0) throw new BadRequestException('Cannot delete. Unit Category is assigned to items.');
+
+    for (const uom of unitCategory.units) {
+      const isUomInUse = await this.prisma.items.findFirst({
+        where: {
+          OR: [
+            { saleUnitOfMeasureId: uom.id },
+            { purchaseUnitOfMeasureId: uom.id },
+            { unitOfMeasureId: uom.id },
+          ],
+        },
+      });
+      if (isUomInUse) throw new BadRequestException(`Cannot delete. UOM ${uom.name} is in use.`);
+    }
+
+    return this.prisma.unitCategory.delete({ where: { id } });
   }
 }
