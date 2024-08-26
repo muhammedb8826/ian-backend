@@ -1,8 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class OrdersService {
@@ -385,8 +386,13 @@ export class OrdersService {
 
       return updatedOrder;
     } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ConflictException('Unique constraint violation: An order with the same item and service already exists.');
+        }
+      }
       console.error('Error updating order:', error);
-      throw error;
+      throw new BadRequestException('Failed to update order');
     }
   }
 
