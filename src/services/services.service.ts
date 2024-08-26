@@ -13,12 +13,6 @@ export class ServicesService {
         name: createServiceDto.name,
         description: createServiceDto.description,
         status: createServiceDto.status,
-        sellingPrice: createServiceDto.sellingPrice,
-        item: {
-          connect: {
-            id: createServiceDto.itemId
-          }
-        }
       }
     })
   }
@@ -41,11 +35,7 @@ export class ServicesService {
   }
 
   async findAllServices() {
-    return this.prisma.services.findMany({
-      include: {
-        item: true
-      }
-    })
+    return this.prisma.services.findMany()
   }
 
   findOne(id: string) {

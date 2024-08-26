@@ -7,28 +7,23 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UomService {
   constructor(private prisma: PrismaService){}
   async create(createUomDto: CreateUomDto) {
-    const existingByNameOrAbbreviation = await this.prisma.uOM.findFirst({
+    const existingUom = await this.prisma.uOM.findFirst({
       where: {
-        OR: [
-          { name: createUomDto.name },
-          { abbreviation: createUomDto.abbreviation }
-        ]
+        name: createUomDto.name,
+        abbreviation: createUomDto.abbreviation,
+        unitCategoryId: createUomDto.unitCategoryId,
       }
     });
-
-    if(existingByNameOrAbbreviation) {
-      throw new ConflictException('UOM already exists')
+    
+    if (existingUom) {
+      throw new ConflictException('UOM already exists in this category');
     }
-
-    const conversionRate = typeof createUomDto.conversionRate === 'string'
-    ? parseFloat(createUomDto.conversionRate)
-    : createUomDto.conversionRate;
 
     return this.prisma.uOM.create({
       data: {
         name: createUomDto.name,
         abbreviation: createUomDto.abbreviation,
-        conversionRate: conversionRate,
+        conversionRate: parseFloat(createUomDto.conversionRate.toString()),
         baseUnit: createUomDto.baseUnit,
         unitCategoryId: createUomDto.unitCategoryId,
       }
@@ -80,37 +75,24 @@ export class UomService {
 
   async update(id: string, updateUomDto: UpdateUomDto) {
 
-    const existingByNameOrAbbreviation = await this.prisma.uOM.findFirst({
+    const existingUom = await this.prisma.uOM.findFirst({
       where: {
-        OR: [
-          { name: updateUomDto.name },
-          { abbreviation: updateUomDto.abbreviation }
-        ]
+        name: updateUomDto.name,
+        abbreviation: updateUomDto.abbreviation,
+        unitCategoryId: updateUomDto.unitCategoryId,
       }
     });
 
-    if(existingByNameOrAbbreviation) {
-      throw new ConflictException('UOM already exists')
+    if (existingUom) {
+      throw new ConflictException('UOM already exists in this category');
     }
-
-    const existingUnit = await this.prisma.uOM.findUnique({
-      where: {
-        id: updateUomDto.id
-      }
-    });
-  
-    if (!existingUnit) {
-      throw new NotFoundException('UOM not found');
-    }
-    const conversionRate = typeof updateUomDto.conversionRate === 'string'
-    ? parseFloat(updateUomDto.conversionRate)
-    : updateUomDto.conversionRate;
+    
     return this.prisma.uOM.update({
       where: {id},
       data: {
         name: updateUomDto.name,
         abbreviation: updateUomDto.abbreviation,
-        conversionRate: conversionRate,
+        conversionRate: parseFloat(updateUomDto.conversionRate.toString()),
         baseUnit: updateUomDto.baseUnit,
         unitCategoryId: updateUomDto.unitCategoryId,
       }
@@ -118,8 +100,12 @@ export class UomService {
   }
 
   async remove(id: string) {
-    return this.prisma.uOM.delete({
-      where: {id}
-    })
+    try {
+      return this.prisma.uOM.delete({
+        where: {id}
+      });
+    } catch (error) {
+      throw new NotFoundException('UOM not found');
+    }
   }
 }

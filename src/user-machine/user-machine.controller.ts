@@ -8,7 +8,6 @@ export class UserMachineController {
     constructor(private readonly userMachineService: UserMachineService) {}
     @Post()
     async assignMachineToUser(@Body() assignMachineDto: AssignMachineDto) {
-      console.log('AssignMachineDto:', assignMachineDto); // Log incoming data
         return this.userMachineService.assignMachineToUser(assignMachineDto.userId, assignMachineDto.machineId);
       }
 
