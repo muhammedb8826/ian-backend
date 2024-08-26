@@ -30,6 +30,7 @@ model users {
   operator               sales[]
   notes                  PurchaseItemNote[]      @relation("UserNotes")
   salesNotes             SalesItemNote[]         @relation("UserSalesNotes")
+  orderItemNotes OrderItemNotes[]
 }
 
 model machines {
@@ -353,7 +354,22 @@ model OrderItems {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+ orderItemNotes OrderItemNotes[]
+
   @@unique([orderId, itemId, serviceId])
+}
+
+model OrderItemNotes {
+  id          String   @id @default(cuid())
+  text        String
+  hour        DateTime // Time of note creation
+  date        DateTime // Date of note creation
+  userId      String
+  user        users     @relation(fields: [userId], references: [id]) // Relation to the User who created the note
+  orderItemId String
+  orderItem   OrderItems @relation(fields: [orderItemId], references: [id]) // Relation to OrderItems
+
+  createdAt   DateTime @default(now())
 }
 
 model customers {

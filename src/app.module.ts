@@ -35,8 +35,9 @@ import { PaymentTransactionsModule } from './payment-transactions/payment-transa
 import { CommissionsModule } from './commissions/commissions.module';
 import { CommissionTransactionsModule } from './commission-transactions/commission-transactions.module';
 import { PricingModule } from './pricing/pricing.module';
+import { OrderItemNotesModule } from './order-item-notes/order-item-notes.module';
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule, SalesModule, SaleItemsModule, SaleItemNotesModule, OperatorStockModule, OrdersModule, OrderItemsModule, CustomersModule, SalesPartnersModule, PaymentTermsModule, PaymentTransactionsModule, CommissionsModule, CommissionTransactionsModule, PricingModule],
+  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule, SalesModule, SaleItemsModule, SaleItemNotesModule, OperatorStockModule, OrdersModule, OrderItemsModule, CustomersModule, SalesPartnersModule, PaymentTermsModule, PaymentTransactionsModule, CommissionsModule, CommissionTransactionsModule, PricingModule, OrderItemNotesModule],
   providers: [
     {
       provide: APP_GUARD,

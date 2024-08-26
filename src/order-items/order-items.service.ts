@@ -61,6 +61,7 @@ export class OrderItemsService {
             }
           }
         },
+        orderItemNotes: true
       }
     });
   }
@@ -80,6 +81,7 @@ export class OrderItemsService {
             }
           }
         },
+        orderItemNotes: true
       }
     })
   }

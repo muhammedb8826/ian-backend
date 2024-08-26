@@ -21,4 +21,6 @@ export class CreateOrderItemDto {
     description?: string;
     isDiscounted: boolean;
     status: string;
+
+    orderItemNotes: string[];
 }
