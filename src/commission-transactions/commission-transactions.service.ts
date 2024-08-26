@@ -11,7 +11,6 @@ export class CommissionTransactionsService {
     try {
       return this.prisma.commissionTransactions.create({
         data: {
-          orderId: createCommissionTransactionDto.orderId,
           commissionId: createCommissionTransactionDto.commissionId,
           amount: createCommissionTransactionDto.amount,
           paymentMethod: createCommissionTransactionDto.paymentMethod,
@@ -77,7 +76,6 @@ export class CommissionTransactionsService {
         amount: parseFloat(updateCommissionTransactionDto.amount.toString()), // Ensuring the amount is a valid float
         status: updateCommissionTransactionDto.status,
         description: updateCommissionTransactionDto.description || null, // Handling optional description
-        orderId: updateCommissionTransactionDto.orderId,
         commissionId: updateCommissionTransactionDto.commissionId,
       },
     });

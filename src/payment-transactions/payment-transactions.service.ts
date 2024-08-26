@@ -17,7 +17,6 @@ export class PaymentTransactionsService {
           amount: parseFloat(createPaymentTransactionDto.amount.toString()), // Ensuring the amount is a valid float
           status: createPaymentTransactionDto.status,
           description: createPaymentTransactionDto.description || null, // Handling optional description
-          orderId: createPaymentTransactionDto.orderId,
           paymentTermId: createPaymentTransactionDto.paymentTermId,
         },
       });
@@ -75,7 +74,6 @@ export class PaymentTransactionsService {
         amount: parseFloat(updatePaymentTransactionDto.amount.toString()), // Ensuring the amount is a valid float
         status: updatePaymentTransactionDto.status,
         description: updatePaymentTransactionDto.description || null, // Handling optional description
-        orderId: updatePaymentTransactionDto.orderId,
         paymentTermId: updatePaymentTransactionDto.paymentTermId,
       },
     });

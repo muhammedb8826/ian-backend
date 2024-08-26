@@ -5,7 +5,6 @@ import { CreatePaymentTermDto } from "src/payment-terms/dto/create-payment-term.
 import { CreateSalesPartnerDto } from "src/sales-partners/dto/create-sales-partner.dto";
 
 export class CreateOrderDto {
-  id: string;
   series: string;
   customerId: string;
   status: string;
@@ -17,11 +16,9 @@ export class CreateOrderDto {
   grandTotal: number;
   totalQuantity: number;
   internalNote?: string;
-  paymentTermId?: string;
-  commissionId?: string;
   fileNames: string[];
   adminApproval: boolean;
-  salesPartnersId?: string;
+
 
   // Nested DTOs
   customer: CreateCustomerDto;

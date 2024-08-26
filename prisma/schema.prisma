@@ -320,14 +320,14 @@ model orders {
   fileNames     String[]
   adminApproval Boolean
   customer      customers      @relation(fields: [customerId], references: [id])
-  paymentTerm   paymentTerms?
-  commission    commissions?
+  paymentTerm   paymentTerms?  
+  commission    commissions?  
   salesPartner  salesPartners? @relation(fields: [salesPartnersId], references: [id])
   orderItems    OrderItems[] // One-to-many relation with OrderItems
+  salesPartnersId String?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  salesPartnersId String?
 }
 
 model OrderItems {
@@ -392,7 +392,7 @@ model paymentTerms {
   remainingAmount Float
   status          String
   forcePayment    Boolean
-  order           orders                @relation(fields: [orderId], references: [id]) // Relation back to orders (fields defined here)
+  order           orders                 @relation(fields: [orderId], references: [id], onDelete: Cascade) // Relation back to orders // Relation back to orders (fields defined here)
   transactions    paymentTransactions[] // One-to-many relation with paymentTransactions
 
   createdAt DateTime @default(now())
@@ -402,7 +402,6 @@ model paymentTerms {
 model paymentTransactions {
   id            String       @id @default(cuid())
   date          DateTime
-  orderId       String
   paymentTermId String
   paymentMethod String
   reference     String
@@ -420,8 +419,8 @@ model commissions {
   orderId        String                   @unique // One-to-one relation with orders, must be unique
   salesPartnerId String
   totalAmount    Float
-  order          orders                   @relation(fields: [orderId], references: [id]) // Relation back to orders (fields defined here)
-  salesPartner   salesPartners            @relation(fields: [salesPartnerId], references: [id]) // Relation to salesPartners
+  order          orders                   @relation(fields: [orderId], references: [id], onDelete: Cascade) // Relation back to orders (fields defined here)
+  salesPartner   salesPartners            @relation(fields: [salesPartnerId], references: [id], onDelete: Cascade) // Relation to salesPartners
   transactions   commissionTransactions[] // One-to-many relation with commissionTransactions
 
   createdAt DateTime @default(now())
@@ -430,7 +429,6 @@ model commissions {
 
 model commissionTransactions {
   id            String      @id @default(cuid())
-  orderId       String
   date          DateTime
   amount        Float
   percentage    Float

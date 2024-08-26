@@ -1,6 +1,5 @@
 export class CreateCommissionTransactionDto {
     id: string
-    orderId: string
     date: Date
     amount: number
     percentage: number
