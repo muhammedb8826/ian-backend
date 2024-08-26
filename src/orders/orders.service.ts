@@ -67,39 +67,39 @@ export class OrdersService {
 
           orderItems: {
             create: createOrderDto.orderItems.map(item => ({
-                itemId: item.itemId,
-                serviceId: item.serviceId,
-                width: parseFloat(item.width.toString()),
-                height: parseFloat(item.height.toString()),
-                discount: parseFloat(item.discount.toString()),
-                level: item.level,
-                totalAmount: parseFloat(item.totalAmount.toString()),
-                adminApproval: item.adminApproval,
-                uomId: item.uomId,
-                quantity: parseFloat(item.quantity.toString()),
-                unitPrice: parseFloat(item.unitPrice.toString()),
-                description: item.description,
-                isDiscounted: item.isDiscounted,
-                status: item.status,
+              itemId: item.itemId,
+              serviceId: item.serviceId,
+              width: parseFloat(item.width.toString()),
+              height: parseFloat(item.height.toString()),
+              discount: parseFloat(item.discount.toString()),
+              level: item.level,
+              totalAmount: parseFloat(item.totalAmount.toString()),
+              adminApproval: item.adminApproval,
+              uomId: item.uomId,
+              quantity: parseFloat(item.quantity.toString()),
+              unitPrice: parseFloat(item.unitPrice.toString()),
+              description: item.description,
+              isDiscounted: item.isDiscounted,
+              status: item.status,
             })),
-        },
+          },
         },
       });
-  
+
       return order;
     } catch (error) {
       console.error('Error creating order:', error);
-  
+
       // Check if it's a Prisma error
       if (error.code === 'P2002') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-  
+
       // Log the error details for better debugging
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         console.error('Prisma error details:', error.meta);
       }
-  
+
       // Throw a more informative error for better feedback
       throw new Error(`An unexpected error occurred: ${error.message}`);
     }
@@ -148,6 +148,7 @@ export class OrdersService {
         commission: {
           include: {
             transactions: true,
+            salesPartner: true,
           },
         },
         salesPartner: true,
@@ -169,6 +170,7 @@ export class OrdersService {
         commission: {
           include: {
             transactions: true,
+            salesPartner: true,
           },
         },
         salesPartner: true,
@@ -177,37 +179,70 @@ export class OrdersService {
   }
 
   async update(id: string, updateOrderDto: UpdateOrderDto) {
+    const { orderItems, paymentTerm, commission, salesPartner, ...orderData } = updateOrderDto;
+
+    // Fetch the existing order and related data
+    const existingOrder = await this.prisma.orders.findUnique({
+      where: { id },
+      include: {
+        orderItems: true,
+        paymentTerm: { include: { transactions: true } },
+        commission: { include: { transactions: true, salesPartner:true } },
+        salesPartner: true,
+      },
+    });
+
+    if (!existingOrder) {
+      throw new Error('Order not found');
+    }
+
+
+    // Extract existing IDs for comparison
+    const existingOrderItemIds = existingOrder.orderItems.map(item => item.id);
+    const newOrderItemIds = orderItems.map(item => item.id);
+    const orderItemsToDelete = existingOrderItemIds.filter(id => !newOrderItemIds.includes(id));
+
+
     try {
+      // Perform the update operation
       const updatedOrder = await this.prisma.orders.update({
         where: { id },
         data: {
-          series: updateOrderDto.series,
-          status: updateOrderDto.status,
-          orderDate: updateOrderDto.orderDate,
-          deliveryDate: updateOrderDto.deliveryDate,
-          totalAmount: updateOrderDto.totalAmount,
-          orderSource: updateOrderDto.orderSource,
-          tax: updateOrderDto.tax,
-          grandTotal: updateOrderDto.grandTotal,
-          totalQuantity: updateOrderDto.totalQuantity,
-          internalNote: updateOrderDto.internalNote,
-          fileNames: updateOrderDto.fileNames,
-          adminApproval: updateOrderDto.adminApproval,
+          series: orderData.series,
+          customer: {
+            connect: { id: orderData.customerId },
+          },
+          status: orderData.status,
+          orderDate: new Date(orderData.orderDate),
+          deliveryDate: new Date(orderData.deliveryDate),
+          orderSource: orderData.orderSource,
+          totalAmount: parseFloat(orderData.totalAmount.toString()),
+          tax: parseFloat(orderData.tax.toString()),
+          grandTotal: parseFloat(orderData.grandTotal.toString()),
+          totalQuantity: parseFloat(orderData.totalQuantity.toString()),
+          internalNote: orderData.internalNote,
+          fileNames: orderData.fileNames,
+          adminApproval: orderData.adminApproval,
+
+
+
+          // Update Order Items
           orderItems: {
-            upsert: updateOrderDto.orderItems.map(item => ({
-              where: { id: item.id }, // Assumes each item has an `id`
+            deleteMany: { id: { in: orderItemsToDelete } },
+            upsert: orderItems.map(item => ({
+              where: { id: item.id || '' },
               update: {
                 itemId: item.itemId,
                 serviceId: item.serviceId,
-                width: item.width,
-                height: item.height,
-                discount: item.discount,
+                width: parseFloat(item.width.toString()),
+                height: parseFloat(item.height.toString()),
+                discount: parseFloat(item.discount.toString()),
                 level: item.level,
-                totalAmount: item.totalAmount,
+                totalAmount: parseFloat(item.totalAmount.toString()),
                 adminApproval: item.adminApproval,
                 uomId: item.uomId,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                quantity: parseFloat(item.quantity.toString()),
+                unitPrice: parseFloat(item.unitPrice.toString()),
                 description: item.description,
                 isDiscounted: item.isDiscounted,
                 status: item.status,
@@ -215,45 +250,49 @@ export class OrdersService {
               create: {
                 itemId: item.itemId,
                 serviceId: item.serviceId,
-                width: item.width,
-                height: item.height,
-                discount: item.discount,
+                width: parseFloat(item.width.toString()),
+                height: parseFloat(item.height.toString()),
+                discount: parseFloat(item.discount.toString()),
                 level: item.level,
-                totalAmount: item.totalAmount,
+                totalAmount: parseFloat(item.totalAmount.toString()),
                 adminApproval: item.adminApproval,
                 uomId: item.uomId,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                quantity: parseFloat(item.quantity.toString()),
+                unitPrice: parseFloat(item.unitPrice.toString()),
                 description: item.description,
                 isDiscounted: item.isDiscounted,
                 status: item.status,
               },
             })),
           },
-          paymentTerm: updateOrderDto.paymentTerm ? {
+
+
+          // Update Payment Term
+          paymentTerm: paymentTerm ? {
+            delete: existingOrder.paymentTerm ? { id: existingOrder.paymentTerm.id } : undefined,
             upsert: {
-              where: { id: updateOrderDto.paymentTerm.id }, // Assumes paymentTerm has an `id`
+              where: { id: paymentTerm.id || '' },
               update: {
-                totalAmount: updateOrderDto.paymentTerm.totalAmount,
-                remainingAmount: updateOrderDto.paymentTerm.remainingAmount,
-                status: updateOrderDto.paymentTerm.status,
-                forcePayment: updateOrderDto.paymentTerm.forcePayment,
+                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
+                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
+                status: paymentTerm.status,
+                forcePayment: paymentTerm.forcePayment,
                 transactions: {
-                  upsert: updateOrderDto.paymentTerm.transactions.map(transaction => ({
-                    where: { id: transaction.id }, // Assumes each transaction has an `id`
+                  upsert: paymentTerm.transactions.map(transaction => ({
+                    where: { id: transaction.id || '' },
                     update: {
-                      date: transaction.date,
+                      date: new Date(transaction.date),
                       paymentMethod: transaction.paymentMethod,
                       reference: transaction.reference,
-                      amount: transaction.amount,
+                      amount: parseFloat(transaction.amount.toString()),
                       status: transaction.status,
                       description: transaction.description,
                     },
                     create: {
-                      date: transaction.date,
+                      date: new Date(transaction.date),
                       paymentMethod: transaction.paymentMethod,
                       reference: transaction.reference,
-                      amount: transaction.amount,
+                      amount: parseFloat(transaction.amount.toString()),
                       status: transaction.status,
                       description: transaction.description,
                     },
@@ -261,38 +300,49 @@ export class OrdersService {
                 },
               },
               create: {
-                totalAmount: updateOrderDto.paymentTerm.totalAmount,
-                remainingAmount: updateOrderDto.paymentTerm.remainingAmount,
-                status: updateOrderDto.paymentTerm.status,
-                forcePayment: updateOrderDto.paymentTerm.forcePayment,
+                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
+                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
+                status: paymentTerm.status,
+                forcePayment: paymentTerm.forcePayment,
                 transactions: {
-                  create: updateOrderDto.paymentTerm.transactions, // Assumes data.paymentTerm.transactions is an array
+                  create: paymentTerm.transactions.map(transaction => ({
+                    date: new Date(transaction.date),
+                    paymentMethod: transaction.paymentMethod,
+                    reference: transaction.reference,
+                    amount: parseFloat(transaction.amount.toString()),
+                    status: transaction.status,
+                    description: transaction.description,
+                  })),
                 },
               },
             },
           } : undefined,
-          commission: updateOrderDto.commission ? {
+
+
+          // Update Commission
+          commission: commission ? {
+            delete: existingOrder.commission ? { id: existingOrder.commission.id } : undefined,
             upsert: {
-              where: { id: updateOrderDto.commission.id }, // Assumes commission has an `id`
+              where: { id: commission.id || '' },
               update: {
-                salesPartnerId: updateOrderDto.commission.salesPartnerId,
-                totalAmount: updateOrderDto.commission.totalAmount,
+                salesPartnerId: commission.salesPartnerId,
+                totalAmount: parseFloat(commission.totalAmount.toString()),
                 transactions: {
-                  upsert: updateOrderDto.commission.transactions.map(transaction => ({
-                    where: { id: transaction.id }, // Assumes each transaction has an `id`
+                  upsert: commission.transactions.map(transaction => ({
+                    where: { id: transaction.id || '' },
                     update: {
-                      date: transaction.date,
-                      amount: transaction.amount,
-                      percentage: transaction.percentage,
+                      date: new Date(transaction.date),
+                      amount: parseFloat(transaction.amount.toString()),
+                      percentage: parseFloat(transaction.percentage.toString()),
                       paymentMethod: transaction.paymentMethod,
                       reference: transaction.reference,
                       status: transaction.status,
                       description: transaction.description,
                     },
                     create: {
-                      date: transaction.date,
-                      amount: transaction.amount,
-                      percentage: transaction.percentage,
+                      date: new Date(transaction.date),
+                      amount: parseFloat(transaction.amount.toString()),
+                      percentage: parseFloat(transaction.percentage.toString()),
                       paymentMethod: transaction.paymentMethod,
                       reference: transaction.reference,
                       status: transaction.status,
@@ -302,27 +352,44 @@ export class OrdersService {
                 },
               },
               create: {
-                salesPartnerId: updateOrderDto.commission.salesPartnerId,
-                totalAmount: updateOrderDto.commission.totalAmount,
+                salesPartnerId: commission.salesPartnerId,
+                totalAmount: parseFloat(commission.totalAmount.toString()),
                 transactions: {
-                  create: updateOrderDto.commission.transactions, // Assumes data.commission.transactions is an array
+                  create: commission.transactions.map(transaction => ({
+                    date: new Date(transaction.date),
+                    amount: parseFloat(transaction.amount.toString()),
+                    percentage: parseFloat(transaction.percentage.toString()),
+                    paymentMethod: transaction.paymentMethod,
+                    reference: transaction.reference,
+                    status: transaction.status,
+                    description: transaction.description,
+                  })),
                 },
               },
             },
           } : undefined,
-          salesPartner: updateOrderDto.salesPartner ? {
-            connect: { id: updateOrderDto.salesPartner.id },
+
+          // Connect Sales Partner if available
+          salesPartner: salesPartner ? {
+            connect: { id: salesPartner.id },
           } : undefined,
         },
+        include: {
+          customer: true,
+          orderItems: true,
+          paymentTerm: { include: { transactions: true } },
+          commission: { include: { transactions: true, salesPartner: true } },
+          salesPartner: true,
+        },
       });
-  
+
       return updatedOrder;
     } catch (error) {
       console.error('Error updating order:', error);
       throw error;
     }
   }
-  
+
 
   async remove(id: string) {
     try {
