@@ -21,6 +21,9 @@ export class OrderItemNotesService {
   async findAllByOrderItem(orderItemId: string) {
     return this.prisma.orderItemNotes.findMany({
       where: { orderItemId },
+      include: {
+        user: true,
+      },
     });
   }
 
@@ -28,6 +31,9 @@ export class OrderItemNotesService {
    async findOne(id: string) {
     return this.prisma.orderItemNotes.findUnique({
       where: { id },
+      include : {
+        user: true
+      }
     });
   }
 

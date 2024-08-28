@@ -7,7 +7,7 @@ import { UpdateOrderItemNoteDto } from './dto/update-order-item-note.dto';
 export class OrderItemNotesController {
   constructor(private readonly orderItemNotesService: OrderItemNotesService) {}
 
-  @Post('order-item/:orderItemId/note')
+  @Post(':orderItemId')
   async createOrderItemNote(
     @Param('orderItemId') orderItemId: string,
     @Body() createOrderItemNoteDto: CreateOrderItemNoteDto,
@@ -15,23 +15,24 @@ export class OrderItemNotesController {
     return this.orderItemNotesService.create(orderItemId, createOrderItemNoteDto);
   }
 
-  @Get('order-items/:orderItemId')
+  @Get(':orderItemId')
   findAllByOrderItem(@Param('orderItemId') orderItemId: string) {
     return this.orderItemNotesService.findAllByOrderItem(orderItemId);
   }
 
-  @Get(':id')
+  @Get('note/:id')
   findOne(@Param('id') id: string) {
     return this.orderItemNotesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch('note/:id')
   update(@Param('id') id: string, @Body() updateOrderItemNoteDto: UpdateOrderItemNoteDto) {
     return this.orderItemNotesService.update(id, updateOrderItemNoteDto);
   }
 
-  @Delete(':id')
+  @Delete('note/:id')
   remove(@Param('id') id: string) {
     return this.orderItemNotesService.remove(id);
   }
 }
+

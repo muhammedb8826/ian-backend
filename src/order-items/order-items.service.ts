@@ -13,16 +13,16 @@ export class OrderItemsService {
         data: {
           orderId: createOrderItemDto.orderId,
           itemId: createOrderItemDto.itemId,
-          quantity: createOrderItemDto.quantity,
+          quantity: parseFloat(createOrderItemDto.quantity.toString()),
           serviceId: createOrderItemDto.serviceId,
           width: parseFloat(createOrderItemDto.width.toString()),
           height: parseFloat(createOrderItemDto.height.toString()),
           discount: createOrderItemDto.discount,
           level: createOrderItemDto.level,
-          totalAmount: createOrderItemDto.totalAmount,
+          totalAmount: parseFloat(createOrderItemDto.totalAmount.toString()),
           adminApproval: createOrderItemDto.adminApproval,
           uomId: createOrderItemDto.uomId,
-          unitPrice: createOrderItemDto.unitPrice,
+          unitPrice: parseFloat(createOrderItemDto.unitPrice.toString()),
           description: createOrderItemDto.description,
           isDiscounted: createOrderItemDto.isDiscounted,
           status: createOrderItemDto.status
@@ -47,48 +47,27 @@ export class OrderItemsService {
 
   }
 
-  async findAll() {
-    return this.prisma.orderItems.findMany({
+  async findAll(orderId: string) {
+    const orderItems = await this.prisma.orderItems.findMany({
+      where: {orderId},
       include: {
         order: true,
-        item: {
+        item: true,
+        orderItemNotes: {
           include: {
-            services: true,
-            unitCategory: {
-              include: {
-                units: true
-              }
-            }
+            user: true,
           }
-        },
-        orderItemNotes: true
+        }
       }
     });
+
+    return orderItems;
   }
 
-  async findOne(id: string) {
-    return this.prisma.orderItems.findUnique({
-      where: {id},
-      include: {
-        order: true,
-        item: {
-          include: {
-            services: true,
-            unitCategory: {
-              include: {
-                units: true
-              }
-            }
-          }
-        },
-        orderItemNotes: true
-      }
-    })
-  }
 
   async update(id: string, updateOrderItemDto: UpdateOrderItemDto) {
-   return this.prisma.orderItems.update({
-      where: {id},
+    const updatedOrderItem = await this.prisma.orderItems.update({
+      where: { id },
       data: {
         orderId: updateOrderItemDto.orderId,
         itemId: updateOrderItemDto.itemId,
@@ -96,17 +75,41 @@ export class OrderItemsService {
         serviceId: updateOrderItemDto.serviceId,
         width: parseFloat(updateOrderItemDto.width.toString()),
         height: parseFloat(updateOrderItemDto.height.toString()),
-        discount: updateOrderItemDto.discount,
+        discount: parseFloat(updateOrderItemDto.discount.toString()),
         level: updateOrderItemDto.level,
-        totalAmount: updateOrderItemDto.totalAmount,
+        totalAmount: parseFloat(updateOrderItemDto.totalAmount.toString()),
         adminApproval: updateOrderItemDto.adminApproval,
         uomId: updateOrderItemDto.uomId,
-        unitPrice: updateOrderItemDto.unitPrice,
+        unitPrice: parseFloat(updateOrderItemDto.unitPrice.toString()),
         description: updateOrderItemDto.description,
         isDiscounted: updateOrderItemDto.isDiscounted,
-        status: updateOrderItemDto.status
+        status: updateOrderItemDto.status,
+      },
+    });
+  
+    // Check if the status is 'Approved' and handle payment verification
+    if (updateOrderItemDto.status === 'Approved') {
+      const orderPayment = await this.prisma.paymentTerms.findFirst({
+        where: { orderId: updateOrderItemDto.orderId },
+        include: {
+          order: true,
+        },
+      });
+  
+      if (orderPayment) {
+        const paymentTerm = await this.prisma.paymentTerms.findFirst({
+          where: { id: orderPayment.id },
+        });
+  
+        if (paymentTerm) {
+          if (paymentTerm.forcePayment === true && paymentTerm.remainingAmount > 0) {
+            throw new ConflictException('Payment is not completed');
+          }
+        }
       }
-    })
+    }
+  
+    return updatedOrderItem;
   }
 
   async remove(id: string) {

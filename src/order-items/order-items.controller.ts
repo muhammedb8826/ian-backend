@@ -12,14 +12,9 @@ export class OrderItemsController {
     return this.orderItemsService.create(createOrderItemDto);
   }
 
-  @Get()
-  findAll() {
-    return this.orderItemsService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.orderItemsService.findOne(id);
+  @Get(':orderId')
+  findAll(@Param('orderId') orderId: string) {
+    return this.orderItemsService.findAll(orderId);
   }
 
   @Patch(':id')
