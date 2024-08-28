@@ -8,22 +8,22 @@ export class OrderItemsController {
   constructor(private readonly orderItemsService: OrderItemsService) {}
 
   @Post()
-  create(@Body() createOrderItemDto: CreateOrderItemDto) {
+  async create(@Body() createOrderItemDto: CreateOrderItemDto) {
     return this.orderItemsService.create(createOrderItemDto);
   }
 
   @Get(':orderId')
-  findAll(@Param('orderId') orderId: string) {
+  async findAll(@Param('orderId') orderId: string) {
     return this.orderItemsService.findAll(orderId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrderItemDto: UpdateOrderItemDto) {
+  async update(@Param('id') id: string, @Body() updateOrderItemDto: UpdateOrderItemDto) {
     return this.orderItemsService.update(id, updateOrderItemDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string) {
     return this.orderItemsService.remove(id);
   }
 }

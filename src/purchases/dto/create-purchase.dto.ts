@@ -52,5 +52,5 @@ export class CreatePurchaseDto {
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => CreatePurchaseItemDto)
-    items: CreatePurchaseItemDto[];
+    purchaseItems: CreatePurchaseItemDto[];
 }

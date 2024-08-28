@@ -7,27 +7,27 @@ import { UpdatePurchaseItemNoteDto } from './dto/update-purchase-item-note.dto';
 export class PurchaseItemNotesController {
   constructor(private readonly purchaseItemNotesService: PurchaseItemNotesService) {}
 
-  @Post()
-  create(@Body() createPurchaseItemNoteDto: CreatePurchaseItemNoteDto) {
-    return this.purchaseItemNotesService.create(createPurchaseItemNoteDto);
+  @Post(':purchaseItemId')
+  async create(@Body() @Param('purchaseItemId') purchaseItemId: string, createPurchaseItemNoteDto: CreatePurchaseItemNoteDto) {
+    return this.purchaseItemNotesService.create(purchaseItemId, createPurchaseItemNoteDto);
   }
 
-  @Get()
-  findAll() {
-    return this.purchaseItemNotesService.findAll();
+  @Get(':purchaseItemId')
+  findAll(@Param('purchaseItemId') purchaseItemId: string) {
+    return this.purchaseItemNotesService.findAll(purchaseItemId);
   }
 
-  @Get(':id')
+  @Get('note:id')
   findOne(@Param('id') id: string) {
     return this.purchaseItemNotesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch('note:id')
   update(@Param('id') id: string, @Body() updatePurchaseItemNoteDto: UpdatePurchaseItemNoteDto) {
     return this.purchaseItemNotesService.update(id, updatePurchaseItemNoteDto);
   }
 
-  @Delete(':id')
+  @Delete('note:id')
   remove(@Param('id') id: string) {
     return this.purchaseItemNotesService.remove(id);
   }

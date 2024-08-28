@@ -8,20 +8,47 @@ import { Prisma } from '@prisma/client';
 export class PurchaseItemsService {
   constructor(private readonly prisma: PrismaService) { }
   async create(createPurchaseItemDto: CreatePurchaseItemDto) {
-    const purchaseItem = await this.prisma.purchaseItems.create({
-      data: createPurchaseItemDto as unknown as Prisma.PurchaseItemsCreateInput,
-    });
+    try{
+      return await this.prisma.purchaseItems.create({
+        data: {
+          purchaseId: createPurchaseItemDto.purchaseId,
+          itemId: createPurchaseItemDto.itemId,
+          unitId: createPurchaseItemDto.unitId,
+          quantity: parseFloat(createPurchaseItemDto.quantity.toString()),
+          unitPrice: parseFloat(createPurchaseItemDto.unitPrice.toString()),
+          amount: parseFloat(createPurchaseItemDto.amount.toString()),
+          description: createPurchaseItemDto.description,
+          status: createPurchaseItemDto.status,
+        },
+      })
+    } catch (error) {
+      console.error('Error creating purchase item:', error);
 
-    return purchaseItem;
+      if (error.code === 'P2002') {
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Prisma error details:', error.meta);
+      }
+
+      throw new Error(`An unexpected error occurred: ${error.message}`);
+    }
   }
 
   async findAll(purchaseId: string) {
     const purchaseItems = await this.prisma.purchaseItems.findMany({
       where: { purchaseId },
       include: {
-        notes: true,
-      }
-    });
+        purchase: true,
+        item: true,
+        purchaseItemNotes: {
+          include: {
+            user: true,
+          },
+        },
+        }
+      });
 
     return purchaseItems;
   }
@@ -70,41 +97,17 @@ export class PurchaseItemsService {
         });
 
          // Build the update data
-      const updateData: Prisma.PurchaseItemsUpdateInput = {
-        ...updatePurchaseItemDto,
-        notes: {
-          updateMany: updatePurchaseItemDto.notes.map(note => ({
-            where: { id: note.id },
-            data: {
-              text: note.text,
-              date: note.date,
-              hour: note.hour,
-            },
-          })),
-        },
+      const updateData = {
+        quantity: parseFloat(updatePurchaseItemDto.quantity.toString()),
+        unitPrice: parseFloat(updatePurchaseItemDto.unitPrice.toString()),
+        status: updatePurchaseItemDto.status,
       };
-
-        if (updatePurchaseItemDto.notes && updatePurchaseItemDto.notes.length > 0) {
-          updateData.notes = {
-            updateMany: updatePurchaseItemDto.notes.map(note => ({
-              where: { id: note.id },
-              data: {
-                text: note.text,
-                date: note.date,
-                hour: note.hour,
-              },
-            })),
-          };
-        }
 
         // Update the purchase item and include the related notes
       const updatedPurchaseItem = await prisma.purchaseItems.update({
         where: { id },
         data: updateData,
-        include: {
-          item: true,
-          notes: true,
-        },
+        include: { purchaseItemNotes: true },
       });
 
         return updatedPurchaseItem;

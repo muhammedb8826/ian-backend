@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 export class PurchasesService {
   constructor(private readonly prisma: PrismaService) { }
   async create(createPurchaseDto: CreatePurchaseDto) {
-    const { items, ...purchaseData } = createPurchaseDto;
+    const { ...purchaseData } = createPurchaseDto;
     try {
       const purchase = await this.prisma.purchases.create({
         data: {
@@ -16,15 +16,15 @@ export class PurchasesService {
           vendorId: purchaseData.vendorId,
           purchaseRepresentativeId: purchaseData.purchaseRepresentativeId,
           status: purchaseData.status,
-          orderDate: purchaseData.orderDate,
+          orderDate: new Date(purchaseData.orderDate),
           paymentMethod: purchaseData.paymentMethod,
-          amount: purchaseData.amount,
+          amount: parseFloat(purchaseData.amount.toString()),
           reference: purchaseData.reference,
-          totalAmount: purchaseData.totalAmount,
-          totalQuantity: purchaseData.totalQuantity,
+          totalAmount: parseFloat(purchaseData.totalAmount.toString()),
+          totalQuantity: parseFloat(purchaseData.totalQuantity.toString()),
           note: purchaseData.note,
-          items: {
-            create: items.map(item => ({
+          purchaseItems: {
+            create: createPurchaseDto.purchaseItems.map(item => ({
               itemId: item.itemId,
               unitId: item.unitId,
               quantity: item.quantity,
@@ -32,25 +32,8 @@ export class PurchasesService {
               amount: item.amount,
               description: item.description,
               status: item.status,
-              notes: {
-                create: item.notes.map(note => ({
-                  text: note.text,
-                  userId: note.userId,
-                  date: note.date,
-                  hour: note.hour,
-                })),
-              },
             })),
           },
-        },
-        include: {
-          items: {
-            include: {
-              notes: true,
-            },
-          },
-          vendor: true,
-          purchaseRepresentative: true,
         },
       });
       return purchase;
@@ -82,9 +65,7 @@ export class PurchasesService {
         },
         include: {
           vendor: true,
-          items: {
-            include: { notes: true },
-          },
+          purchaseItems: true,
           purchaseRepresentative: true
         },
       }),
@@ -101,11 +82,7 @@ export class PurchasesService {
       include: {
         vendor: true,
         purchaseRepresentative: true,
-        items: {
-          include: {
-            notes: true
-          }
-        },
+        purchaseItems: true,
       },
     });
   }
@@ -114,9 +91,7 @@ export class PurchasesService {
     return this.prisma.purchases.findUnique({
       where: { id },
       include: {
-        items: {
-          include: { notes: true },
-        },
+        purchaseItems: true,
         vendor: true,
         purchaseRepresentative: true,
       },
@@ -124,12 +99,12 @@ export class PurchasesService {
   }
 
   async update(id: string, updatePurchaseDto: UpdatePurchaseDto) {
-    const { items, ...purchaseData } = updatePurchaseDto;
+    const { ...purchaseData } = updatePurchaseDto;
 
     // Fetch the existing purchase and its items
     const existingPurchase = await this.prisma.purchases.findUnique({
       where: { id },
-      include: { items: true },
+      include: { purchaseItems: true },
     });
 
     if (!existingPurchase) {
@@ -137,8 +112,8 @@ export class PurchasesService {
     }
 
     // Extract existing item IDs for comparison
-    const existingItemIds = existingPurchase.items.map(item => item.id);
-    const newItemIds = items.map(item => item.id);
+    const existingItemIds = existingPurchase.purchaseItems.map(item => item.id);
+    const newItemIds = updatePurchaseDto.purchaseItems.map(item => item.id);
 
     // Determine which items need to be deleted (those not in the new items list)
     const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
@@ -149,9 +124,9 @@ export class PurchasesService {
         where: { id },
         data: {
           ...purchaseData,
-          items: {
+          purchaseItems: {
             deleteMany: { id: { in: itemsToDelete } }, // Delete items not in the new list
-            upsert: items.map(item => ({
+            upsert: updatePurchaseDto.purchaseItems.map(item => ({
               where: { id: item.id || '' }, // Use upsert to create or update items
               update: {
                 quantity: item.quantity,
@@ -160,23 +135,6 @@ export class PurchasesService {
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
-                notes: {
-                  upsert: item.notes.map(note => ({
-                    where: { id: note.id || '' },
-                    update: {
-                      text: note.text,
-                      userId: note.userId,
-                      date: note.date,
-                      hour: note.hour,
-                    },
-                    create: {
-                      text: note.text,
-                      userId: note.userId,
-                      date: note.date,
-                      hour: note.hour,
-                    },
-                  })) || [],
-                },
               },
               create: {
                 itemId: item.itemId,
@@ -186,24 +144,12 @@ export class PurchasesService {
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
-                notes: {
-                  create: item.notes.map(note => ({
-                    text: note.text,
-                    userId: note.userId,
-                    date: note.date,
-                    hour: note.hour,
-                  })) || [],
-                },
               },
             })),
           },
         },
         include: {
-          items: {
-           include: {
-             notes: true
-          },
-        },
+          purchaseItems: true,
           vendor: true,
           purchaseRepresentative: true,
         },
@@ -227,14 +173,14 @@ export class PurchasesService {
     // Fetch the purchase along with associated items
     const purchase = await this.prisma.purchases.findUnique({
       where: { id },
-      include: { items: true },
+      include: { purchaseItems: true },
     });
 
     if (!purchase) {
       throw new NotFoundException(`Purchase with ID ${id} not found`);
     }
 
-    if (purchase.items.length > 0) {
+    if (purchase.purchaseItems.length > 0) {
       // Notify user that the purchase cannot be deleted because it has associated items
       throw new BadRequestException(`Cannot delete purchase with ID ${id} because it has associated items.`);
     }

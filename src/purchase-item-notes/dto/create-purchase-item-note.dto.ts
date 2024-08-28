@@ -1,24 +1,9 @@
-import { IsDateString, IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsString } from "class-validator";
 
 export class CreatePurchaseItemNoteDto {
-  id: string;
   @IsNotEmpty()
   @IsString()
-  readonly text: string;
+  text: string;
 
-  @IsNotEmpty()
-  @IsString()
-  readonly itemId: string;
-
-  @IsNotEmpty()
-  @IsString()
-  readonly userId: string;
-
-  @IsNotEmpty()
-  @IsDateString()
-  readonly date: Date;
-
-  @IsNotEmpty()
-  @IsDateString()
-  readonly hour: Date;
+  userId: string;
 }

@@ -30,7 +30,7 @@ model users {
   operator               sales[]
   notes                  PurchaseItemNote[]      @relation("UserNotes")
   salesNotes             SalesItemNote[]         @relation("UserSalesNotes")
-  orderItemNotes OrderItemNotes[]
+  orderItemNotes         OrderItemNotes[]
 }
 
 model machines {
@@ -57,27 +57,27 @@ model UserMachine {
 }
 
 model Pricing {
-  id        String   @id @default(cuid())
-  itemId    String
-  serviceId String
+  id           String   @id @default(cuid())
+  itemId       String
+  serviceId    String
   sellingPrice Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  service   services @relation(fields: [serviceId], references: [id])
-  item      items    @relation(fields: [itemId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  service      services @relation(fields: [serviceId], references: [id])
+  item         items    @relation(fields: [itemId], references: [id])
 
   @@unique([itemId, serviceId])
 }
 
 model services {
-  id           String        @id @default(cuid())
-  name         String        @unique
-  status       Boolean       @default(true)
-  description  String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  items        items[]
-  pricing  Pricing[]
+  id          String    @id @default(cuid())
+  name        String    @unique
+  status      Boolean   @default(true)
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  items       items[]
+  pricing     Pricing[]
 }
 
 model discounts {
@@ -140,7 +140,7 @@ model purchases {
   totalAmount              Float
   totalQuantity            Int
   note                     String?
-  items                    PurchaseItems[] @relation("PurchaseItemsForPurchase")
+  purchaseItems             PurchaseItems[] @relation("PurchaseItemsForPurchase")
   vendor                   vendors         @relation(fields: [vendorId], references: [id])
   purchaseRepresentative   users           @relation(fields: [purchaseRepresentativeId], references: [id])
   createdAt                DateTime        @default(now())
@@ -148,36 +148,36 @@ model purchases {
 }
 
 model PurchaseItems {
-  id          String             @id @default(cuid())
-  purchaseId  String
-  itemId      String
-  unitId      String
-  quantity    Int
-  unitPrice   Float
-  amount      Float
-  description String?
-  status      String
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  item        items              @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
-  purchase    purchases          @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
-  notes       PurchaseItemNote[] @relation("PurchaseItemNotes")
-  unit        UOM                @relation("ItemPurchasesUnitOfMeasure", fields: [unitId], references: [id])
+  id                String             @id @default(cuid())
+  purchaseId        String
+  itemId            String
+  unitId            String
+  quantity          Int
+  unitPrice         Float
+  amount            Float
+  description       String?
+  status            String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  item              items              @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
+  purchase          purchases          @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
+  purchaseItemNotes PurchaseItemNote[] @relation("PurchaseItemNotes")
+  unit              UOM                @relation("ItemPurchasesUnitOfMeasure", fields: [unitId], references: [id])
 
   @@unique([purchaseId, itemId])
 }
 
 model PurchaseItemNote {
-  id     String        @id @default(cuid())
-  text   String
-  itemId String
-  userId String
-  date   DateTime
-  hour   DateTime
-  item   PurchaseItems @relation("PurchaseItemNotes", fields: [itemId], references: [id])
-  user   users         @relation("UserNotes", fields: [userId], references: [id])
+  id             String        @id @default(cuid())
+  text           String
+  purchaseItemId String
+  userId         String
+  date           DateTime
+  hour           DateTime
+  purchaseItem   PurchaseItems @relation("PurchaseItemNotes", fields: [purchaseItemId], references: [id])
+  user           users         @relation("UserNotes", fields: [userId], references: [id])
 
-  @@index([itemId])
+  @@index([purchaseItemId])
   @@index([userId])
 }
 
@@ -304,31 +304,31 @@ model Attribute {
 }
 
 model orders {
-  id            String         @id @default(cuid())
-  series        String
-  customerId    String
-  status        String
-  orderDate     DateTime       @default(now())
-  deliveryDate  DateTime
-  totalAmount   Float
-  orderSource   String
-  tax           Float
-  grandTotal    Float
-  totalQuantity Int
-  internalNote  String?
-  paymentTermId String?
-  commissionId  String?
-  fileNames     String[]
-  adminApproval Boolean
-  customer      customers      @relation(fields: [customerId], references: [id])
-  paymentTerm   paymentTerms?  
-  commission    commissions?  
-  salesPartner  salesPartners? @relation(fields: [salesPartnersId], references: [id])
-  orderItems    OrderItems[] // One-to-many relation with OrderItems
+  id              String         @id @default(cuid())
+  series          String
+  customerId      String
+  status          String
+  orderDate       DateTime       @default(now())
+  deliveryDate    DateTime
+  totalAmount     Float
+  orderSource     String
+  tax             Float
+  grandTotal      Float
+  totalQuantity   Int
+  internalNote    String?
+  paymentTermId   String?
+  commissionId    String?
+  fileNames       String[]
+  adminApproval   Boolean
+  customer        customers      @relation(fields: [customerId], references: [id])
+  paymentTerm     paymentTerms?
+  commission      commissions?
+  salesPartner    salesPartners? @relation(fields: [salesPartnersId], references: [id])
+  orderItems      OrderItems[] // One-to-many relation with OrderItems
   salesPartnersId String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OrderItems {
@@ -354,22 +354,22 @@ model OrderItems {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
- orderItemNotes OrderItemNotes[]
+  orderItemNotes OrderItemNotes[]
 
   @@unique([orderId, itemId, serviceId])
 }
 
 model OrderItemNotes {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   text        String
   hour        DateTime // Time of note creation
   date        DateTime // Date of note creation
   userId      String
-  user        users     @relation(fields: [userId], references: [id]) // Relation to the User who created the note
+  user        users      @relation(fields: [userId], references: [id]) // Relation to the User who created the note
   orderItemId String
   orderItem   OrderItems @relation(fields: [orderItemId], references: [id]) // Relation to OrderItems
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 model customers {
@@ -408,7 +408,7 @@ model paymentTerms {
   remainingAmount Float
   status          String
   forcePayment    Boolean
-  order           orders                 @relation(fields: [orderId], references: [id], onDelete: Cascade) // Relation back to orders // Relation back to orders (fields defined here)
+  order           orders                @relation(fields: [orderId], references: [id], onDelete: Cascade) // Relation back to orders // Relation back to orders (fields defined here)
   transactions    paymentTransactions[] // One-to-many relation with paymentTransactions
 
   createdAt DateTime @default(now())
