@@ -5,5 +5,7 @@ export class CreatePurchaseItemNoteDto {
   @IsString()
   text: string;
 
+  @IsString()
+  @IsNotEmpty()
   userId: string;
 }

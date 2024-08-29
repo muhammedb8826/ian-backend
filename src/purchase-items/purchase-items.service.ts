@@ -77,11 +77,19 @@ export class PurchaseItemsService {
 
         // Calculate the new quantity based on the status
         let newQuantity = relatedItem.quantity;
-        if (updatePurchaseItemDto.status === 'Cancelled') {
-          newQuantity = relatedItem.quantity - purchaseItem.quantity;
-        } else if (updatePurchaseItemDto.status === 'Received') {
-          newQuantity = relatedItem.quantity + purchaseItem.quantity;
-        }
+
+
+        switch (updatePurchaseItemDto.status) {
+        case 'Cancelled':
+          newQuantity -= purchaseItem.quantity;
+          break;
+        case 'Received':
+          newQuantity += purchaseItem.quantity;
+          break;
+        // Add other statuses if needed
+        default:
+          break;
+      }
 
         // Ensure that quantity cannot drop below zero
         if (newQuantity < 0) {
@@ -96,26 +104,29 @@ export class PurchaseItemsService {
           },
         });
 
-         // Build the update data
-      const updateData = {
-        quantity: parseFloat(updatePurchaseItemDto.quantity.toString()),
-        unitPrice: parseFloat(updatePurchaseItemDto.unitPrice.toString()),
-        status: updatePurchaseItemDto.status,
-      };
+        const updateData = {
+          quantity: parseFloat(updatePurchaseItemDto.quantity.toString()),
+          unitPrice: parseFloat(updatePurchaseItemDto.unitPrice.toString()),
+          status: updatePurchaseItemDto.status,
+        };
 
-        // Update the purchase item and include the related notes
-      const updatedPurchaseItem = await prisma.purchaseItems.update({
-        where: { id },
-        data: updateData,
-        include: { purchaseItemNotes: true },
-      });
+        console.log(updateData);
+        
 
+        const updatedPurchaseItem = await prisma.purchaseItems.update({
+          where: { id },
+          data: updateData,
+          include: { purchaseItemNotes: true },
+        });
+  
         return updatedPurchaseItem;
       } catch (error) {
+        console.log('Error updating purchase item:', error);
+  
         if (error.code === 'P2002') {
           throw new ConflictException('Unique constraint failed. Please check your data.');
         }
-
+  
         throw new Error('An unexpected error occurred: ' + error.message);
       }
     });

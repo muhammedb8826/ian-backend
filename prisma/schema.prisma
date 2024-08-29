@@ -157,12 +157,13 @@ model PurchaseItems {
   amount            Float
   description       String?
   status            String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
   item              items              @relation("PurchaseItemsForItem", fields: [itemId], references: [id])
   purchase          purchases          @relation("PurchaseItemsForPurchase", fields: [purchaseId], references: [id])
   purchaseItemNotes PurchaseItemNote[] @relation("PurchaseItemNotes")
   unit              UOM                @relation("ItemPurchasesUnitOfMeasure", fields: [unitId], references: [id])
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@unique([purchaseId, itemId])
 }
@@ -170,10 +171,10 @@ model PurchaseItems {
 model PurchaseItemNote {
   id             String        @id @default(cuid())
   text           String
-  purchaseItemId String
-  userId         String
-  date           DateTime
   hour           DateTime
+  date           DateTime
+  userId         String
+  purchaseItemId String
   purchaseItem   PurchaseItems @relation("PurchaseItemNotes", fields: [purchaseItemId], references: [id])
   user           users         @relation("UserNotes", fields: [userId], references: [id])
 
@@ -349,12 +350,12 @@ model OrderItems {
   isDiscounted  Boolean
   status        String
   order         orders  @relation(fields: [orderId], references: [id]) // Relation back to orders
-
   item      items    @relation(fields: [itemId], references: [id])
+  orderItemNotes OrderItemNotes[]
+
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  orderItemNotes OrderItemNotes[]
 
   @@unique([orderId, itemId, serviceId])
 }

@@ -8,7 +8,10 @@ export class PurchaseItemNotesController {
   constructor(private readonly purchaseItemNotesService: PurchaseItemNotesService) {}
 
   @Post(':purchaseItemId')
-  async create(@Body() @Param('purchaseItemId') purchaseItemId: string, createPurchaseItemNoteDto: CreatePurchaseItemNoteDto) {
+  async create(
+    @Param('purchaseItemId') purchaseItemId: string,
+    @Body() createPurchaseItemNoteDto: CreatePurchaseItemNoteDto
+  ) {
     return this.purchaseItemNotesService.create(purchaseItemId, createPurchaseItemNoteDto);
   }
 
@@ -17,17 +20,17 @@ export class PurchaseItemNotesController {
     return this.purchaseItemNotesService.findAll(purchaseItemId);
   }
 
-  @Get('note:id')
+  @Get('note/:id')
   findOne(@Param('id') id: string) {
     return this.purchaseItemNotesService.findOne(id);
   }
 
-  @Patch('note:id')
+  @Patch('note/:id')
   update(@Param('id') id: string, @Body() updatePurchaseItemNoteDto: UpdatePurchaseItemNoteDto) {
     return this.purchaseItemNotesService.update(id, updatePurchaseItemNoteDto);
   }
 
-  @Delete('note:id')
+  @Delete('note/:id')
   remove(@Param('id') id: string) {
     return this.purchaseItemNotesService.remove(id);
   }

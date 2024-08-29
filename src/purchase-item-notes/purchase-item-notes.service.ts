@@ -6,7 +6,12 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Injectable()
 export class PurchaseItemNotesService {
   constructor(private readonly prisma: PrismaService) {}
-  async create(purchaseItemId: string,  noteDto: CreatePurchaseItemNoteDto) {
+  async create(purchaseItemId: string, noteDto: CreatePurchaseItemNoteDto) {
+
+    if (!noteDto || !noteDto.text || !noteDto.userId) {
+      throw new Error('Invalid note data');
+    }
+
     return this.prisma.purchaseItemNote.create({
       data: {
         purchaseItemId,
