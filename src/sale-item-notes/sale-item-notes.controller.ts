@@ -7,27 +7,29 @@ import { UpdateSaleItemNoteDto } from './dto/update-sale-item-note.dto';
 export class SaleItemNotesController {
   constructor(private readonly saleItemNotesService: SaleItemNotesService) {}
 
-  @Post()
-  create(@Body() createSaleItemNoteDto: CreateSaleItemNoteDto) {
-    return this.saleItemNotesService.create(createSaleItemNoteDto);
+  @Post(':saleItemId')
+  create(
+    @Param('saleItemId') saleItemId: string,
+    @Body() createSaleItemNoteDto: CreateSaleItemNoteDto) {
+    return this.saleItemNotesService.create(saleItemId, createSaleItemNoteDto);
   }
 
-  @Get()
-  findAll() {
-    return this.saleItemNotesService.findAll();
+  @Get(':saleItemId')
+  findAll(@Param('saleItemId') saleItemId: string) {
+    return this.saleItemNotesService.findAll(saleItemId);
   }
 
-  @Get(':id')
+  @Get('note/:id')
   findOne(@Param('id') id: string) {
     return this.saleItemNotesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch('note/:id')
   update(@Param('id') id: string, @Body() updateSaleItemNoteDto: UpdateSaleItemNoteDto) {
     return this.saleItemNotesService.update(id, updateSaleItemNoteDto);
   }
 
-  @Delete(':id')
+  @Delete('note/:id')
   remove(@Param('id') id: string) {
     return this.saleItemNotesService.remove(id);
   }

@@ -6,37 +6,39 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Injectable()
 export class SaleItemNotesService {
   constructor(private readonly prisma: PrismaService) {}
- async create(createSaleItemNoteDto: CreateSaleItemNoteDto) {
-    try {
-      const saleItemNote = this.prisma.salesItemNote.create({
-        data: createSaleItemNoteDto,
-      });
-      return saleItemNote;
-    } catch (error) {
-      if (error.code === 'P2002') { // Unique constraint error code
-        throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
-      throw new Error('An unexpected error occurred.');
+ async create(saleItemId: string, noteDto: CreateSaleItemNoteDto) {
+
+    if (!noteDto || !noteDto.text || !noteDto.userId) {
+      throw new Error('Invalid note data');
     }
+
+    return this.prisma.salesItemNote.create({
+      data: {
+        saleItemId,
+        text: noteDto.text,
+        hour: new Date(), // You can modify this logic as needed
+        date: new Date(),
+        userId: noteDto.userId, // Pass the current user id
+      },
+    });
   }
 
- async findAll() {
+ async findAll(saleItemId) {
     return this.prisma.salesItemNote.findMany({
-      include: { item: true, user: true },
+     where: { saleItemId },
+      include: {
+        user: true,
+      },
     });
   }
 
   async findOne(id: string) {
-   const saleItemNote = await this.prisma.salesItemNote.findUnique({
+    return this.prisma.salesItemNote.findUnique({
       where: { id },
-      include: { item: true, user: true },
+      include: {
+        user: true,
+      },
     });
-    
-    if (!saleItemNote) {
-      throw new NotFoundException(`SaleItemNote with ID ${id} not found`);
-    }
-    
-    return saleItemNote;
   }
 
  async update(id: string, updateSaleItemNoteDto: UpdateSaleItemNoteDto) {

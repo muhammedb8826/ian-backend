@@ -1,13 +1,10 @@
-import { Type } from "class-transformer";
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
-import { CreateSaleItemNoteDto } from "src/sale-item-notes/dto/create-sale-item-note.dto";
+import {IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateSaleItemDto {
     id: string;
-    @IsNotEmpty()
-    @IsString()
     itemId: string;
 
+    saleId: string;
     unitId: string;
 
     @IsNumber()
@@ -30,9 +27,5 @@ export class CreateSaleItemDto {
     @IsNotEmpty()
     amount: number;
 
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() =>CreateSaleItemNoteDto)
-    notes: CreateSaleItemNoteDto[];
-
+    saleItemNotes: string[];
 }

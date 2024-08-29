@@ -6,24 +6,24 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
   async create(createSaleDto: CreateSaleDto) {
-    const { items, ...saledata } = createSaleDto;
-    try{
+    const { ...saledata } = createSaleDto;
+    try {
       const sale = await this.prisma.sales.create({
         data: {
           series: saledata.series,
           operatorId: saledata.operatorId,
           status: saledata.status,
-          orderDate: saledata.orderDate,
+          orderDate: new Date(saledata.orderDate),
           paymentMethod: saledata.paymentMethod || 'Cash',
-          amount: saledata.amount,
+          amount: parseFloat(saledata.amount.toString()),
           reference: saledata.reference || '',
-          totalAmount: saledata.totalAmount,
-          totalQuantity: saledata.totalQuantity,
+          totalAmount: parseFloat(saledata.totalAmount.toString()),
+          totalQuantity: parseFloat(saledata.totalQuantity.toString()),
           note: saledata.note,
-          items: {
-            create: items.map(item => ({
+          saleItems: {
+            create: createSaleDto.saleItems.map(item => ({
               itemId: item.itemId,
               unitId: item.unitId,
               quantity: item.quantity,
@@ -31,27 +31,12 @@ export class SalesService {
               amount: item.amount,
               description: item.description,
               status: item.status,
-              notes: {
-                create: item.notes.map(note => ({
-                  text: note.text,
-                  userId: note.userId,
-                  date: note.date,
-                  hour: note.hour,
-                })),
-              },
             })),
           },
         },
-        include: {
-          items: {
-            include: {
-              notes: true,
-            },
-          },
-          operator: true,
-        },
       })
-      return sale
+      return sale;
+
     } catch (error) {
       console.error("Error creating sale:", error);
 
@@ -59,15 +44,15 @@ export class SalesService {
       if (error.code === 'P2002') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-      
+
       // Log the error details for better debugging
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         console.error('Prisma error details:', error.meta);
       }
-      
+
       // Throw a more informative error for better feedback
       throw new Error(`An unexpected error occurred: ${error.message}`);
-      }
+    }
   }
 
   async findAll(skip: number, take: number) {
@@ -79,11 +64,7 @@ export class SalesService {
           createdAt: 'desc'
         },
         include: {
-          items: {
-            include: {
-              notes: true
-            }
-          },
+          saleItems: true,
           operator: true,
         },
       }),
@@ -98,11 +79,7 @@ export class SalesService {
   async findAllSales() {
     return this.prisma.sales.findMany({
       include: {
-        items: {
-          include : {
-            notes: true
-          }
-        },
+        saleItems: true,
         operator: true,
       },
     });
@@ -112,42 +89,38 @@ export class SalesService {
     return this.prisma.sales.findUnique({
       where: { id },
       include: {
-        items: {
-          include: {
-            notes: true,
-          },
-        },
+        saleItems: true,
         operator: true,
       },
     });
   }
 
   async update(id: string, updateSaleDto: UpdateSaleDto) {
-    const { items, ...saledata } = updateSaleDto;
-  
+    const {...saledata } = updateSaleDto;
+
     // Fetch the existing sale and its items
     const existingSale = await this.prisma.sales.findUnique({
       where: { id },
-      include: { items: true },
+      include: { saleItems: true },
     });
-  
+
     if (!existingSale) {
       throw new NotFoundException(`Sale with ID ${id} not found`);
     }
-  
+
     // Extract existing item IDs for comparison
-    const existingItemIds = existingSale.items.map(item => item.id);
-    const newItemIds = items.map(item => item.id);
-  
+    const existingItemIds = existingSale.saleItems.map(item => item.id);
+    const newItemIds = updateSaleDto.saleItems.map(item => item.id);
+
     // Determine which items need to be deleted (those not in the new items list)
     const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
-  
+
     try {
       const updatedSale = await this.prisma.sales.update({
         where: { id },
         data: {
           ...saledata,
-          items: {
+          saleItems: {
             // Delete items that are no longer present in the update request
             deleteMany: {
               id: {
@@ -155,7 +128,7 @@ export class SalesService {
               },
             },
             // Update existing items or create new items as needed
-            upsert: items.map(item => ({
+            upsert: updateSaleDto.saleItems.map(item => ({
               where: { id: item.id },
               update: {
                 itemId: item.itemId,
@@ -165,16 +138,6 @@ export class SalesService {
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
-                notes: {
-                  updateMany: item.notes.map(note => ({
-                    where: { id: note.id },
-                    data: {
-                      text: note.text,
-                      date: note.date,
-                      hour: note.hour,
-                    },
-                  })),
-                },
               },
               create: {
                 itemId: item.itemId,
@@ -184,45 +147,33 @@ export class SalesService {
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
-                notes: {
-                  create: item.notes.map(note => ({
-                    text: note.text,
-                    userId: note.userId,
-                    date: note.date,
-                    hour: note.hour,
-                  })),
-                },
               },
             })),
           },
         },
         include: {
-          items: {
-            include: {
-              notes: true,
-            },
-          },
+          saleItems: true,
           operator: true,
         },
       });
-  
+
       return updatedSale;
     } catch (error) {
       console.error("Error updating sale:", error);
-  
+
       if (error.code === 'P2002') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
-  
+
       throw new Error(`An unexpected error occurred: ${error.message}`);
     }
   }
-  
+
   async remove(id: string) {
     const sale = await this.prisma.sales.findUnique({
       where: { id },
       include: {
-        items: true,
+        saleItems: true,
       },
     });
 
@@ -230,7 +181,7 @@ export class SalesService {
       throw new Error(`Sale with ID ${id} not found`);
     }
 
-    if(sale.items.length > 0) {
+    if (sale.saleItems.length > 0) {
       throw new ConflictException('Sale has items and cannot be deleted');
     }
 

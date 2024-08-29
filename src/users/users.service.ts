@@ -50,7 +50,6 @@ export class UsersService {
         address: createUserDto.address,
         roles: createUserDto.roles,
         profile: createUserDto.profile ? `/uploads/profile/${createUserDto.profile}` : null,
-        machine_permissions: createUserDto.machine_permissions || undefined,
         is_active: boolValue
       }
     })
@@ -137,7 +136,6 @@ export class UsersService {
       address: updateUserDto.address,
       roles: updateUserDto.roles,
       profile: updateUserDto.profile ? `/uploads/profile/${updateUserDto.profile}` : null,
-      machine_permissions: updateUserDto.machine_permissions || undefined,
       is_active: boolValue,
     };
     if (updateUserDto.password) {

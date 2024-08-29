@@ -8,13 +8,11 @@ import { Prisma } from '@prisma/client';
 export class PurchasesService {
   constructor(private readonly prisma: PrismaService) { }
   async create(createPurchaseDto: CreatePurchaseDto) {
-    const { ...purchaseData } = createPurchaseDto;
+    const { vendorId, purchaserId, ...purchaseData } = createPurchaseDto;
     try {
       const purchase = await this.prisma.purchases.create({
         data: {
           series: purchaseData.series,
-          vendorId: purchaseData.vendorId,
-          purchaseRepresentativeId: purchaseData.purchaseRepresentativeId,
           status: purchaseData.status,
           orderDate: new Date(purchaseData.orderDate),
           paymentMethod: purchaseData.paymentMethod,
@@ -34,9 +32,16 @@ export class PurchasesService {
               status: item.status,
             })),
           },
+          vendor: {
+            connect: { id: vendorId },
+          },
+          purchaser: {
+            connect: { id: purchaserId },
+          }
         },
       });
       return purchase;
+
     } catch (error) {
       console.error("Error creating purchase:", error);
 
@@ -66,7 +71,7 @@ export class PurchasesService {
         include: {
           vendor: true,
           purchaseItems: true,
-          purchaseRepresentative: true
+          purchaser: true
         },
       }),
       this.prisma.purchases.count(),
@@ -81,7 +86,7 @@ export class PurchasesService {
     return this.prisma.purchases.findMany({
       include: {
         vendor: true,
-        purchaseRepresentative: true,
+        purchaser: true,
         purchaseItems: true,
       },
     });
@@ -93,7 +98,7 @@ export class PurchasesService {
       include: {
         purchaseItems: true,
         vendor: true,
-        purchaseRepresentative: true,
+        purchaser: true,
       },
     });
   }
@@ -151,7 +156,7 @@ export class PurchasesService {
         include: {
           purchaseItems: true,
           vendor: true,
-          purchaseRepresentative: true,
+          purchaser: true,
         },
       });
 

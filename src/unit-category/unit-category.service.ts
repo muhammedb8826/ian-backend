@@ -9,8 +9,19 @@ export class UnitCategoryService {
   async create(createUnitCategoryDto: CreateUnitCategoryDto) {
     const { name, description, constant, constantValue } = createUnitCategoryDto;
 
-    const existingByName = await this.prisma.unitCategory.findUnique({ where: { name } });
+    const existingByName = await this.prisma.unitCategory.findFirst({
+     where: {
+        name: {
+          equals: name,
+          mode: 'insensitive',
+        },
+      },
+    }); 
+
     if (existingByName) throw new ConflictException('Unit Category already exists');
+ 
+    if(constant && constantValue < 2) throw new ConflictException('Constant value must be greater than 1');
+
 
     return this.prisma.unitCategory.create({
       data: { name, description, constant, constantValue }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,6 +8,21 @@ import { services } from '@prisma/client';
 export class ServicesService {
   constructor(private prisma: PrismaService){}
   async create(createServiceDto: CreateServiceDto): Promise<services> {
+
+   const existingByName = await this.prisma.services.findFirst({
+      where: {
+        name: {
+          equals: createServiceDto.name,
+          mode: 'insensitive', // This makes the comparison case-insensitive
+        },
+      },
+    });
+
+    if (existingByName) {
+      throw new ConflictException('Service already exists');
+    }
+
+
     return await this.prisma.services.create({
       data: {
         name: createServiceDto.name,

@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateUserDto } from './create-user.dto';
-import { Role, UserMachinePermission } from '@prisma/client';
+import { Role } from '@prisma/client';
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
     email: string;
@@ -14,6 +14,5 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
     address?: string;
     roles?: Role;
     profile?: string;
-    machinePermissions?: UserMachinePermission[];
     isActive?: boolean;
 }

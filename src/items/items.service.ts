@@ -237,23 +237,52 @@ export class ItemsService {
   
 
   async remove(id: string) {
-    const item = await this.prisma.items.findUnique({ where: { id } });
+    // Fetch the item and include only the relations that should block deletion
+    const item = await this.prisma.items.findUnique({
+      where: { id },
+      include: {
+        sales: true,
+        purchases: true,
+        OrderItems: true,
+        operatorStock: true,
+        attributes: true,
+        discounts: true,
+        services: true,
+        pricing: true,
+      },
+    });
+  
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
+  
+    // Check if the item has any related sales, purchases, orders, or other blocking relations
+    const hasRelatedEntities = 
+      item.sales.length > 0 || 
+      item.purchases.length > 0 || 
+      item.OrderItems.length > 0 || 
+      item.operatorStock.length > 0 || 
+      item.attributes.length > 0 || 
+      item.discounts.length > 0 || 
+      item.services.length > 0 || 
+      item.pricing.length > 0;
+  
+    if (hasRelatedEntities) {
+      throw new BadRequestException('Cannot delete item because it has related entities that prevent deletion.');
+    }
+  
+    // Proceed with deletion if there are no blocking related entities
     try {
       return await this.prisma.items.delete({
         where: { id },
-        include: {
-          services: true,
-          discounts: true
-        }
       });
     } catch (error) {
-      if (error.code === 'P2003') { // P2003 is Prisma's foreign key constraint error code
+      if (error.code === 'P2003') { // Foreign key constraint error
         throw new BadRequestException('Cannot delete item due to existing dependencies. Please remove associated data first.');
       }
       throw error; // Rethrow other errors
     }
   }
+  
+  
 }

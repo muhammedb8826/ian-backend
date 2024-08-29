@@ -10,15 +10,19 @@ export class MachinesService {
   async create(createMachineDto: CreateMachineDto): Promise<machines> {
     const booleanValue = Boolean(createMachineDto.status)
 
-   const existingByName = await this.prisma.machines.findUnique({
-    where: {
-      name: createMachineDto.name
+    const existingByName = await this.prisma.machines.findFirst({
+      where: {
+        name: {
+          equals: createMachineDto.name,
+          mode: 'insensitive', // This makes the comparison case-insensitive
+        },
+      },
+      
+    });
+  
+    if (existingByName) {
+      throw new ConflictException('Machine already exists');
     }
-   })
-
-   if(existingByName) {
-    throw new ConflictException('Machine already exists')
-   }
 
     return await this.prisma.machines.create({
       data: {

@@ -4,7 +4,7 @@ export class CreatePurchaseDto {
     id: string;
     series: string;
     vendorId: string;
-    purchaseRepresentativeId: string;
+    purchaserId: string;
     status: string;
     orderDate: Date;
     paymentMethod: string;

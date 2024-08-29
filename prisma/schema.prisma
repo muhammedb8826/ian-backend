@@ -24,11 +24,10 @@ model users {
   roles                  Role                    @default(ADMIN)
   confirm_password       String
   is_active              Boolean                 @default(true)
-  machine_permissions    UserMachinePermission[]
   machines               UserMachine[]
-  purchaseRepresentative purchases[]
+  purchaser              purchases[]
   operator               sales[]
-  notes                  PurchaseItemNote[]      @relation("UserNotes")
+  purchaseItemNotes      PurchaseItemNote[]      @relation("UserNotes")
   salesNotes             SalesItemNote[]         @relation("UserSalesNotes")
   orderItemNotes         OrderItemNotes[]
 }
@@ -131,7 +130,7 @@ model purchases {
   id                       String          @id @default(cuid())
   series                   String
   vendorId                 String
-  purchaseRepresentativeId String
+  purchaserId String
   status                   String
   orderDate                DateTime        @default(now())
   paymentMethod            String
@@ -142,7 +141,7 @@ model purchases {
   note                     String?
   purchaseItems             PurchaseItems[] @relation("PurchaseItemsForPurchase")
   vendor                   vendors         @relation(fields: [vendorId], references: [id])
-  purchaseRepresentative   users           @relation(fields: [purchaseRepresentativeId], references: [id])
+  purchaser   users           @relation(fields: [purchaserId], references: [id])
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
 }
@@ -194,7 +193,7 @@ model sales {
   totalAmount   Float
   totalQuantity Int
   note          String?
-  items         SaleItems[] @relation("SaleItemsForSale")
+  saleItems         SaleItems[] @relation("SaleItemsForSale")
   operator      users       @relation(fields: [operatorId], references: [id])
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -214,21 +213,21 @@ model SaleItems {
   updatedAt   DateTime        @updatedAt
   item        items           @relation("SaleItemsForItem", fields: [itemId], references: [id])
   sale        sales           @relation("SaleItemsForSale", fields: [saleId], references: [id])
-  notes       SalesItemNote[] @relation("SaleItemNotes")
+  saleItemNotes       SalesItemNote[] @relation("SaleItemNotes")
   unit        UOM             @relation("ItemSalesUnitOfMeasure", fields: [unitId], references: [id])
 }
 
 model SalesItemNote {
   id     String    @id @default(cuid())
   text   String
-  itemId String
-  userId String
-  date   DateTime
   hour   DateTime
-  item   SaleItems @relation("SaleItemNotes", fields: [itemId], references: [id])
+  date   DateTime
+  userId String
+  saleItemId String
+  saleItem   SaleItems @relation("SaleItemNotes", fields: [saleItemId], references: [id])
   user   users     @relation("UserSalesNotes", fields: [userId], references: [id])
 
-  @@index([itemId])
+  @@index([saleItemId])
   @@index([userId])
 }
 
@@ -468,15 +467,5 @@ enum Role {
   OPERATOR
   FINANCE
   STORE_REPRESENTATIVE
-}
-
-enum UserMachinePermission {
-  UV
-  DTG
-  EMBROIDERY
-  LASER
-  SCREEN_PRINTING
-  HEAT_PRESS
-  VINYL
-  SUBLIMATION
+  PURCHASER
 }
