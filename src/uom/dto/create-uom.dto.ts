@@ -5,8 +5,4 @@ export class CreateUomDto {
     conversionRate: number;
     baseUnit: boolean;
     unitCategoryId: string;
-    attributes: {
-        name: string;
-        value: string;
-    }[];
 }

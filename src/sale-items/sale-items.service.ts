@@ -9,7 +9,7 @@ export class SaleItemsService {
   constructor(private readonly prisma: PrismaService) { }
   async create(createSaleItemDto: CreateSaleItemDto) {
     try {
-      return await this.prisma.saleItems.create({
+      const saleItem = await this.prisma.saleItems.create({
         data: {
           saleId: createSaleItemDto.saleId,
           itemId: createSaleItemDto.itemId,
@@ -21,6 +21,13 @@ export class SaleItemsService {
           status: createSaleItemDto.status,
         },
       });
+
+      // Schedule status change if initially set to 'Stocked-out'
+      if (saleItem.status === 'Stocked-out') {
+        this.scheduleStatusChange(saleItem.id, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+      }
+
+      return saleItem;
     } catch (error) {
       console.error('Error creating Sale Item:', error);
 
@@ -124,6 +131,9 @@ export class SaleItemsService {
               },
             });
           }
+          
+          this.scheduleStatusChange(id, 24 * 60 * 60 * 1000);
+
         }
 
         // Ensure that quantity cannot drop below zero
@@ -217,5 +227,22 @@ export class SaleItemsService {
     });
 
     return deletedSaleItem;
+  }
+
+
+  private async scheduleStatusChange(id: string, delay: number) {
+    setTimeout(async () => {
+      const saleItem = await this.prisma.saleItems.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+
+      if (saleItem?.status === 'Stocked-out') {
+        await this.prisma.saleItems.update({
+          where: { id },
+          data: { status: 'Sent' },
+        });
+      }
+    }, delay);
   }
 }

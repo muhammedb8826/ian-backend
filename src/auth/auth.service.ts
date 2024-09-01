@@ -100,7 +100,7 @@ export class AuthService {
                 },
                 {
                     secret: 'rt-secret',
-                    expiresIn: 60 * 60 * 24 * 7,
+                    expiresIn: 60 * 60 * 24 * 3,
                 }
             )
         ]);
