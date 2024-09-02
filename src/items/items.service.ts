@@ -43,27 +43,17 @@ export class ItemsService {
           updated_initial_stock: createItemDto.updated_initial_stock || 0,
           can_be_sold: createItemDto.can_be_sold || false,
           can_be_purchased: createItemDto.can_be_purchased || false,
-          purchase_price: createItemDto.purchase_price || 0,
-          selling_price: createItemDto.selling_price || 0,
           quantity: createItemDto.quantity || 0,
-          unitOfMeasure: createItemDto.unitOfMeasureId ? { connect: { id: createItemDto.unitOfMeasureId } } : undefined,
-          purchaseUnitOfMeasure: createItemDto.purchaseUnitOfMeasureId ? { connect: { id: createItemDto.purchaseUnitOfMeasureId } } : undefined,
+          defaultUom: createItemDto.defaultUomId ? { connect: { id: createItemDto.defaultUomId } } : undefined,
+          purchaseUom: createItemDto.purchaseUomId? { connect: { id: createItemDto.purchaseUomId } } : undefined,
           machine: { connect: { id: createItemDto.machineId } },
           unitCategory: createItemDto.unitCategoryId ? { connect: { id: createItemDto.unitCategoryId } } : undefined, // Connect unitCategory
-          discounts: {
-            create: createItemDto.discounts?.map(discount => ({
-              level: discount.level,
-              quantity: discount.quantity || 0,
-              percentage: discount.percentage || 0
-            })) || []
-          }
         },
         include: {
-          unitOfMeasure: true,
-          purchaseUnitOfMeasure: true,
+          defaultUom: true,
+          purchaseUom: true,
           machine: true,
           services: true,
-          discounts: true,
           unitCategory: true
         }
       });
@@ -109,7 +99,15 @@ export class ItemsService {
           ]
         } : {},
         include: {
-
+          services: true,
+          defaultUom: true,
+          purchaseUom: true,
+          machine: true,
+          unitCategory: {
+            include: {
+              uoms: true
+            }
+          }
         },
         orderBy: {
           createdAt: 'desc'
@@ -133,14 +131,13 @@ export class ItemsService {
   async findAllItems() {
     return this.prisma.items.findMany({
       include: {
-        discounts: true,
         services: true,
-        unitOfMeasure: true,
-        purchaseUnitOfMeasure: true,
+        defaultUom: true,
+        purchaseUom: true,
         machine: true,
         unitCategory: {
           include: {
-            units: true
+            uoms: true
           }
         }
       }
@@ -151,14 +148,13 @@ export class ItemsService {
     const item = await this.prisma.items.findUnique({
        where: { id },
        include: {
-         discounts: true,
          services: true,
-         unitOfMeasure: true,
-         purchaseUnitOfMeasure: true,
+         defaultUom: true,
+         purchaseUom: true,
          machine: true,
          unitCategory: {
           include: {
-            units: true
+            uoms: true
           }
         }
        }
@@ -183,29 +179,11 @@ export class ItemsService {
       updated_initial_stock: updateItemDto.updated_initial_stock,
       can_be_sold: updateItemDto.can_be_sold,
       can_be_purchased: updateItemDto.can_be_purchased,
-      purchase_price: updateItemDto.purchase_price,
-      selling_price: updateItemDto.selling_price,
       quantity: updateItemDto.quantity,
-      unitOfMeasure: updateItemDto.unitOfMeasureId ? { connect: { id: updateItemDto.unitOfMeasureId } } : undefined,
-      purchaseUnitOfMeasure: updateItemDto.purchaseUnitOfMeasureId ? { connect: { id: updateItemDto.purchaseUnitOfMeasureId } } : undefined,
+      defaultUom: updateItemDto.defaultUomId ? { connect: { id: updateItemDto.defaultUomId } } : undefined,
+      purchaseUom: updateItemDto.purchaseUomId ? { connect: { id: updateItemDto.purchaseUomId } } : undefined,
       machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
       unitCategory: updateItemDto.unitCategoryId ? { connect: { id: updateItemDto.unitCategoryId } } : undefined, // Connect unitCategory
-      discounts: {
-        deleteMany: {},  // This deletes all existing discounts
-        upsert: (updateItemDto.discounts || []).map(discount => ({
-          where: { id: discount.id || '' },  // Ensure ID for existing discount
-          update: {
-            level: discount.level,
-            quantity: discount.quantity ?? 0,
-            percentage: discount.percentage ?? 0,
-          },
-          create: {
-            level: discount.level ?? 0,
-            quantity: discount.quantity ?? 0,
-            percentage: discount.percentage ?? 0,
-          },
-        })),
-      },
     };
   
     try {
@@ -213,10 +191,9 @@ export class ItemsService {
         where: { id },
         data: updateData,
         include: {
-          discounts: true,
           services: true,
-          unitOfMeasure: true,
-          purchaseUnitOfMeasure: true,
+          defaultUom: true,
+          purchaseUom: true,
           machine: true,
           unitCategory: true
         },
@@ -246,7 +223,6 @@ export class ItemsService {
         OrderItems: true,
         operatorStock: true,
         attributes: true,
-        discounts: true,
         services: true,
         pricing: true,
       },
@@ -263,7 +239,6 @@ export class ItemsService {
       item.OrderItems.length > 0 || 
       item.operatorStock.length > 0 || 
       item.attributes.length > 0 || 
-      item.discounts.length > 0 || 
       item.services.length > 0 || 
       item.pricing.length > 0;
   

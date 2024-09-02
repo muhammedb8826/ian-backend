@@ -34,7 +34,7 @@ export class UnitCategoryService {
         skip: +skip,
         take: +take,
         orderBy: { createdAt: 'desc' },
-        include: { items: true, units: true }
+        include: { items: true, uoms: true }
       }),
       this.prisma.unitCategory.count(),
     ]);
@@ -46,7 +46,7 @@ export class UnitCategoryService {
     return this.prisma.unitCategory.findMany({
       include: {
         items: true,
-        units: true
+        uoms: true
       }
     })
   }
@@ -54,7 +54,7 @@ export class UnitCategoryService {
  async findOne(id: string) {
     const unitCategory = await this.prisma.unitCategory.findUnique({
       where: { id },
-      include: { items: true, units: true },
+      include: { items: true, uoms: true },
     });
     if (!unitCategory) throw new NotFoundException('Unit Category not found');
     return unitCategory;
@@ -66,26 +66,25 @@ export class UnitCategoryService {
     return this.prisma.unitCategory.update({
       where: { id },
       data: { name, description, constant, constantValue },
-      include: { units: true, items: true },
+      include: { uoms: true, items: true },
     });
   }
 
   async remove(id: string) {
     const unitCategory = await this.prisma.unitCategory.findUnique({
       where: { id },
-      include: { items: true, units: true },
+      include: { items: true, uoms: true },
     });
 
     if (!unitCategory) throw new NotFoundException('Unit Category not found');
     if (unitCategory.items.length > 0) throw new BadRequestException('Cannot delete. Unit Category is assigned to items.');
 
-    for (const uom of unitCategory.units) {
+    for (const uom of unitCategory.uoms) {
       const isUomInUse = await this.prisma.items.findFirst({
         where: {
           OR: [
-            { saleUnitOfMeasureId: uom.id },
-            { purchaseUnitOfMeasureId: uom.id },
-            { unitOfMeasureId: uom.id },
+            { defaultUomId: uom.id },
+            { purchaseUomId: uom.id },
           ],
         },
       });

@@ -13,10 +13,8 @@ export class SaleItemsService {
         data: {
           saleId: createSaleItemDto.saleId,
           itemId: createSaleItemDto.itemId,
-          unitId: createSaleItemDto.unitId,
+          uomId: createSaleItemDto.uomId,
           quantity: parseFloat(createSaleItemDto.quantity.toString()),
-          unitPrice: parseFloat(createSaleItemDto.unitPrice.toString()),
-          amount: parseFloat(createSaleItemDto.amount.toString()),
           description: createSaleItemDto.description,
           status: createSaleItemDto.status,
         },
@@ -122,10 +120,8 @@ export class SaleItemsService {
             await prisma.operatorStock.create({
               data: {
                 itemId: relatedItem.id,
-                unitId: saleItem.unitId,
+                uomId: saleItem.uomId,
                 quantity: saleItem.quantity,
-                unitPrice: relatedItem.selling_price, // Use the selling price of the item
-                amount: relatedItem.selling_price * saleItem.quantity,
                 description: `Stocked-out for Sale Item ${saleItem.id}`,
                 status: 'Active', // Adjust the status as needed
               },
@@ -153,8 +149,6 @@ export class SaleItemsService {
           where: { id },
           data: {
             quantity: parseFloat(updateSaleItemDto.quantity.toString()),
-            unitPrice: parseFloat(updateSaleItemDto.unitPrice.toString()),
-            amount: parseFloat(updateSaleItemDto.amount.toString()),
             description: updateSaleItemDto.description,
             status: updateSaleItemDto.status,
           },

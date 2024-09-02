@@ -6,7 +6,7 @@ export class CreatePurchaseItemDto {
 
     purchaseId: string;
 
-    unitId: string;
+    uomId: string;
 
     @IsNumber()
     @IsNotEmpty()

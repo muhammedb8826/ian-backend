@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { CreateSaleItemDto } from "src/sale-items/dto/create-sale-item.dto";
 
 export class CreateSaleDto {
@@ -18,17 +18,9 @@ export class CreateSaleDto {
     orderDate: Date;
 
     @IsOptional()
-    paymentMethod?: string;
-
-    @IsNumber()
-    @IsNotEmpty()
-    amount: number;
-
-    @IsOptional()
     @IsString()
     reference?: string;
 
-    totalAmount: number;
     totalQuantity: number;
     note: string;
 

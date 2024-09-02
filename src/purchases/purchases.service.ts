@@ -24,7 +24,7 @@ export class PurchasesService {
           purchaseItems: {
             create: createPurchaseDto.purchaseItems.map(item => ({
               itemId: item.itemId,
-              unitId: item.unitId,
+              uomId: item.uomId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               amount: item.amount,
@@ -135,7 +135,7 @@ export class PurchasesService {
               where: { id: item.id || '' }, // Use upsert to create or update items
               update: {
                 quantity: item.quantity,
-                unitId: item.unitId,
+                uomId: item.uomId,
                 unitPrice: item.unitPrice,
                 amount: item.amount,
                 description: item.description,
@@ -143,7 +143,7 @@ export class PurchasesService {
               },
               create: {
                 itemId: item.itemId,
-                unitId: item.unitId,
+                uomId: item.uomId,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 amount: item.amount,

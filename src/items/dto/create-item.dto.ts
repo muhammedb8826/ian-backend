@@ -1,14 +1,5 @@
 import { IsBoolean, IsInt, IsOptional, IsString } from "class-validator";
 
-class CreateDiscountDto {
-    id: string;
-    level: number;
-    @IsInt()
-    quantity: number;
-    percentage: number;
-}
-
-
 export class CreateItemDto {
     @IsString()
     name: string;
@@ -32,22 +23,18 @@ export class CreateItemDto {
     @IsBoolean()
     can_be_purchased: boolean;
 
-    purchase_price: number;
-    selling_price: number;
-
     @IsOptional()
     @IsString()
-    unitOfMeasureId?: string;
+    defaultUomId?: string;
    
     @IsOptional()
     @IsString()
-    purchaseUnitOfMeasureId?: string;
+    purchaseUomId?: string;
 
     @IsString()
     machineId: string;
 
     quantity: number;
-    discounts?: CreateDiscountDto[];
 
     unitCategoryId?: string;
 }

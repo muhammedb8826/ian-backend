@@ -5,16 +5,12 @@ export class CreateSaleItemDto {
     itemId: string;
 
     saleId: string;
-    unitId: string;
+    uomId: string;
 
     @IsNumber()
     @IsNotEmpty()
     quantity: number;
-
-    @IsNumber()
-    @IsNotEmpty()
-    unitPrice: number;
-
+    
     @IsOptional()
     @IsString()
     description?: string;
@@ -22,10 +18,5 @@ export class CreateSaleItemDto {
     @IsOptional()
     @IsString()
     status?: string;
-
-    @IsNumber()
-    @IsNotEmpty()
-    amount: number;
-
     saleItemNotes: string[];
 }
