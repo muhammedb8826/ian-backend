@@ -83,10 +83,10 @@ export class PurchaseItemsService {
 
         switch (updatePurchaseItemDto.status) {
         case 'Cancelled':
-          newQuantity -= purchaseItem.quantity;
+          newQuantity -= purchaseItem.unit;
           break;
         case 'Received':
-          newQuantity += purchaseItem.quantity;
+          newQuantity += purchaseItem.unit;
           break;
         // Add other statuses if needed
         default:
@@ -105,6 +105,8 @@ export class PurchaseItemsService {
             quantity: newQuantity,
           },
         });
+
+        // Update the purchase item
 
         const updateData = {
           quantity: parseFloat(updatePurchaseItemDto.quantity.toString()),
