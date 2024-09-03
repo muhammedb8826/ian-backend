@@ -25,6 +25,8 @@ export class PurchasesService {
             create: createPurchaseDto.purchaseItems.map(item => ({
               itemId: item.itemId,
               uomId: item.uomId,
+              baseUomId: item.baseUomId,
+              unit: parseFloat(item.unit.toString()),
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               amount: item.amount,
@@ -136,7 +138,9 @@ export class PurchasesService {
               update: {
                 quantity: item.quantity,
                 uomId: item.uomId,
-                unitPrice: item.unitPrice,
+                baseUomId: item.baseUomId,
+                unit: parseFloat(item.unit.toString()),
+                unitPrice: parseFloat(item.unitPrice.toString()),
                 amount: item.amount,
                 description: item.description,
                 status: item.status,
@@ -144,8 +148,10 @@ export class PurchasesService {
               create: {
                 itemId: item.itemId,
                 uomId: item.uomId,
+                baseUomId: item.baseUomId,
+                unit: parseFloat(item.unit.toString()),
                 quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                unitPrice: parseFloat(item.unitPrice.toString()),
                 amount: item.amount,
                 description: item.description,
                 status: item.status,

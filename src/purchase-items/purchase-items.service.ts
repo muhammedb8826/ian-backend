@@ -14,6 +14,8 @@ export class PurchaseItemsService {
           purchaseId: createPurchaseItemDto.purchaseId,
           itemId: createPurchaseItemDto.itemId,
           uomId: createPurchaseItemDto.uomId,
+          baseUomId: createPurchaseItemDto.baseUomId,
+          unit: parseFloat(createPurchaseItemDto.unit.toString()),
           quantity: parseFloat(createPurchaseItemDto.quantity.toString()),
           unitPrice: parseFloat(createPurchaseItemDto.unitPrice.toString()),
           amount: parseFloat(createPurchaseItemDto.amount.toString()),
@@ -109,7 +111,7 @@ export class PurchaseItemsService {
           unitPrice: parseFloat(updatePurchaseItemDto.unitPrice.toString()),
           status: updatePurchaseItemDto.status,
         };
-        
+
         const updatedPurchaseItem = await prisma.purchaseItems.update({
           where: { id },
           data: updateData,

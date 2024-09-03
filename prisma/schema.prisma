@@ -144,6 +144,8 @@ model PurchaseItems {
   id                String             @id @default(cuid())
   purchaseId        String
   itemId            String
+  baseUomId         String
+  unit             Float
   uomId            String
   quantity          Int
   unitPrice         Float

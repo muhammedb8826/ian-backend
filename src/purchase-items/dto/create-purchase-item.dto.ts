@@ -28,5 +28,8 @@ export class CreatePurchaseItemDto {
     @IsNotEmpty()
     amount: number;
 
+    baseUomId: string;
+    unit: number;
+
     purchaseItemNotes : string[];
 }
