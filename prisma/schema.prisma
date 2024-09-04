@@ -60,11 +60,17 @@ model Pricing {
   itemId       String
   serviceId    String
   sellingPrice Float
+  constant    Boolean  @default(false)
+  width        Float?
+  height       Float?
+  baseUomId    String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   service      services @relation(fields: [serviceId], references: [id])
   item         items    @relation(fields: [itemId], references: [id])
 
+  uom          UOM     @relation(fields: [baseUomId], references: [id])
+  orderItems   OrderItems[] // One-to-many relation with OrderItems
   @@unique([itemId, serviceId])
 }
 
@@ -82,7 +88,7 @@ model services {
 model discounts {
   id         String   @id @default(cuid())
   level      Int
-  quantity   Int
+  unit       Float
   percentage Float
   itemId     String
   createdAt  DateTime @default(now())
@@ -195,7 +201,9 @@ model SaleItems {
   id            String          @id @default(cuid())
   saleId        String
   itemId        String
-  uomId        String
+  baseUomId     String
+  unit          Float
+  uomId         String
   quantity      Int
   description   String?
   status        String
@@ -204,7 +212,7 @@ model SaleItems {
   item          items           @relation("SaleItemsForItem", fields: [itemId], references: [id])
   sale          sales           @relation("SaleItemsForSale", fields: [saleId], references: [id])
   saleItemNotes SalesItemNote[] @relation("SaleItemNotes")
-  unit          UOM             @relation("ItemSalesUnitOfMeasure", fields: [uomId], references: [id])
+  uoms          UOM             @relation("ItemSalesUnitOfMeasure", fields: [uomId], references: [id])
 }
 
 model SalesItemNote {
@@ -226,9 +234,12 @@ model OperatorStock {
   itemId      String
   uomId      String
   quantity    Int
+  baseUomId     String
+  unit          Float
   description String?
   status      String
 
+  uoms        UOM     @relation(fields: [uomId], references: [id])
   item      items    @relation(fields: [itemId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -274,6 +285,9 @@ model UOM {
   defaultUom     items[]         @relation("ItemDefaultUom") // One-to-many relation with items
   purchaseItems  PurchaseItems[] @relation("ItemPurchasesUnitOfMeasure") // One-to-many relation with PurchaseItems
   saleItems      SaleItems[]     @relation("ItemSalesUnitOfMeasure") // One-to-many relation with SaleItems
+  operatorStock OperatorStock[] // One-to-many relation with OperatorStock
+  pricing        Pricing[]       // One-to-many relation with Pricing
+  orderItems     OrderItems[]    // One-to-many relation with OrderItems
 
   @@unique([name, abbreviation, unitCategoryId])
 }
@@ -323,6 +337,7 @@ model OrderItems {
   orderId        String
   itemId         String
   serviceId      String
+  pricingId      String
   width          Float?
   height         Float?
   discount       Float?
@@ -330,6 +345,8 @@ model OrderItems {
   totalAmount    Float
   adminApproval  Boolean
   uomId          String
+  baseUomId         String
+  unit             Float
   quantity       Int
   unitPrice      Float
   description    String?
@@ -338,6 +355,8 @@ model OrderItems {
   order          orders           @relation(fields: [orderId], references: [id]) // Relation back to orders
   item           items            @relation(fields: [itemId], references: [id])
   orderItemNotes OrderItemNotes[]
+  pricing     Pricing          @relation(fields: [pricingId], references: [id])
+  uom         UOM              @relation(fields: [uomId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

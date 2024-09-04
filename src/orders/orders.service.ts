@@ -82,6 +82,9 @@ export class OrdersService {
               description: item.description,
               isDiscounted: item.isDiscounted,
               status: item.status,
+              pricingId: item.pricingId,
+              unit: parseFloat(item.unit.toString()),
+              baseUomId: item.baseUomId,
             })),
           },
         },
@@ -116,7 +119,11 @@ export class OrdersService {
         },
         include: {
           customer: true,
-          orderItems: true,
+          orderItems: {
+            include: {
+              pricing: true,
+            }
+          },
           paymentTerm: true,
           commission: true,
           salesPartner: true,
@@ -140,7 +147,11 @@ export class OrdersService {
     return this.prisma.orders.findMany({
       include: {
         customer: true,
-        orderItems: true,
+        orderItems: {
+          include: {
+            pricing: true,
+          }
+        },
         paymentTerm: {
           include: {
             transactions: true,
@@ -162,7 +173,11 @@ export class OrdersService {
       where: { id },
       include: {
         customer: true,
-        orderItems: true,
+        orderItems: {
+          include: {
+            pricing: true
+          }
+        },
         paymentTerm: {
           include: {
             transactions: true,
@@ -247,6 +262,9 @@ export class OrdersService {
                 description: item.description,
                 isDiscounted: item.isDiscounted,
                 status: item.status,
+                pricingId: item.pricingId,
+                unit: parseFloat(item.unit.toString()),
+                baseUomId: item.baseUomId,
               },
               create: {
                 itemId: item.itemId,
@@ -263,6 +281,9 @@ export class OrdersService {
                 description: item.description,
                 isDiscounted: item.isDiscounted,
                 status: item.status,
+                pricingId: item.pricingId,
+                unit: parseFloat(item.unit.toString()),
+                baseUomId: item.baseUomId,
               },
             })),
           },

@@ -5,4 +5,6 @@ export class CreateOperatorStockDto {
     quantity: number;
     description?: string;
     status: string;
+    baseUomId: string;
+    unit: number;
 }

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "Pricing" ADD COLUMN     "constant" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "height" DOUBLE PRECISION,
+ADD COLUMN     "width" DOUBLE PRECISION;
+
+-- AddForeignKey
+ALTER TABLE "OperatorStock" ADD CONSTRAINT "OperatorStock_uomId_fkey" FOREIGN KEY ("uomId") REFERENCES "UOM"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

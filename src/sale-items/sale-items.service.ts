@@ -14,6 +14,8 @@ export class SaleItemsService {
           saleId: createSaleItemDto.saleId,
           itemId: createSaleItemDto.itemId,
           uomId: createSaleItemDto.uomId,
+          baseUomId: createSaleItemDto.baseUomId,
+          unit: parseFloat(createSaleItemDto.unit.toString()),
           quantity: parseFloat(createSaleItemDto.quantity.toString()),
           description: createSaleItemDto.description,
           status: createSaleItemDto.status,
@@ -21,9 +23,9 @@ export class SaleItemsService {
       });
 
       // Schedule status change if initially set to 'Stocked-out'
-      if (saleItem.status === 'Stocked-out') {
-        this.scheduleStatusChange(saleItem.id, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
-      }
+      // if (saleItem.status === 'Stocked-out') {
+      //   this.scheduleStatusChange(saleItem.id, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+      // }
 
       return saleItem;
     } catch (error) {
@@ -78,10 +80,14 @@ export class SaleItemsService {
           throw new NotFoundException(`Related item not found for Sale Item with ID ${id}`);
         }
 
+        if(updateSaleItemDto.status === 'Requested' && relatedItem.quantity < updateSaleItemDto.quantity) {
+          throw new ConflictException('Requested quantity is more than available quantity');
+        }
+
         // Calculate the new quantity based on the status
         let newQuantity = relatedItem.quantity;
         if (updateSaleItemDto.status === 'Cancelled') {
-          newQuantity = relatedItem.quantity + saleItem.quantity;
+          newQuantity = relatedItem.quantity + saleItem.unit;
 
           // Check if operator stock exists and reduce its quantity
           const operatorStock = await prisma.operatorStock.findFirst({
@@ -93,14 +99,14 @@ export class SaleItemsService {
             await prisma.operatorStock.update({
               where: { id: operatorStock.id },
               data: {
-                quantity: operatorStock.quantity - saleItem.quantity,
+                quantity: operatorStock.quantity - saleItem.unit,
               },
             });
           }
 
 
         } else if (updateSaleItemDto.status === 'Stocked-out') {
-          newQuantity = relatedItem.quantity - saleItem.quantity;
+          newQuantity = relatedItem.quantity - saleItem.unit;
 
           // Check if operator stock exists
           const operatorStock = await prisma.operatorStock.findFirst({
@@ -112,7 +118,7 @@ export class SaleItemsService {
             await prisma.operatorStock.update({
               where: { id: operatorStock.id },
               data: {
-                quantity: operatorStock.quantity + saleItem.quantity,
+                quantity: operatorStock.quantity + saleItem.unit,
               },
             });
           } else {
@@ -121,15 +127,16 @@ export class SaleItemsService {
               data: {
                 itemId: relatedItem.id,
                 uomId: saleItem.uomId,
-                quantity: saleItem.quantity,
+                quantity: saleItem.unit,
                 description: `Stocked-out for Sale Item ${saleItem.id}`,
-                status: 'Active', // Adjust the status as needed
+                status: 'Active',
+                baseUomId: saleItem.baseUomId,
+                unit: saleItem.unit,
               },
             });
           }
           
-          this.scheduleStatusChange(id, 24 * 60 * 60 * 1000);
-
+          // this.scheduleStatusChange(id, 24 * 60 * 60 * 1000);
         }
 
         // Ensure that quantity cannot drop below zero
@@ -151,6 +158,7 @@ export class SaleItemsService {
             quantity: parseFloat(updateSaleItemDto.quantity.toString()),
             description: updateSaleItemDto.description,
             status: updateSaleItemDto.status,
+            unit: parseFloat(updateSaleItemDto.unit.toString()),
           },
           include: { saleItemNotes: true },
         });
@@ -224,19 +232,19 @@ export class SaleItemsService {
   }
 
 
-  private async scheduleStatusChange(id: string, delay: number) {
-    setTimeout(async () => {
-      const saleItem = await this.prisma.saleItems.findUnique({
-        where: { id },
-        select: { status: true },
-      });
+  // private async scheduleStatusChange(id: string, delay: number) {
+  //   setTimeout(async () => {
+  //     const saleItem = await this.prisma.saleItems.findUnique({
+  //       where: { id },
+  //       select: { status: true },
+  //     });
 
-      if (saleItem?.status === 'Stocked-out') {
-        await this.prisma.saleItems.update({
-          where: { id },
-          data: { status: 'Sent' },
-        });
-      }
-    }, delay);
-  }
+  //     if (saleItem?.status === 'Stocked-out') {
+  //       await this.prisma.saleItems.update({
+  //         where: { id },
+  //         data: { status: 'Sent' },
+  //       });
+  //     }
+  //   }, delay);
+  // }
 }

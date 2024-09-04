@@ -9,4 +9,9 @@ export class CreatePricingDto {
 
     @IsNumber()
     sellingPrice: number;
+
+    constant: boolean;
+    width? : number;
+    height? : number;
+    baseUomId: string;
 }

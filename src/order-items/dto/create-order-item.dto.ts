@@ -7,6 +7,9 @@ export class CreateOrderItemDto {
     serviceId: string;
     width?: number;
     height?: number;
+    pricingId: string;
+    unit: number;
+    baseUomId: string;
 
     @IsOptional()
     discount?: number;

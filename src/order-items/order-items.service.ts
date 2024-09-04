@@ -25,7 +25,10 @@ export class OrderItemsService {
           unitPrice: parseFloat(createOrderItemDto.unitPrice.toString()),
           description: createOrderItemDto.description,
           isDiscounted: createOrderItemDto.isDiscounted,
-          status: createOrderItemDto.status
+          status: createOrderItemDto.status,
+          pricingId: createOrderItemDto.pricingId,
+          unit: parseFloat(createOrderItemDto.unit.toString()),
+          baseUomId: createOrderItemDto.baseUomId,
         }
       })
     } catch (error) {
@@ -52,6 +55,7 @@ export class OrderItemsService {
       where: {orderId},
       include: {
         order: true,
+        pricing: true,
         item: true,
         orderItemNotes: {
           include: {
@@ -84,6 +88,9 @@ export class OrderItemsService {
         description: updateOrderItemDto.description,
         isDiscounted: updateOrderItemDto.isDiscounted,
         status: updateOrderItemDto.status,
+        pricingId: updateOrderItemDto.pricingId,
+        unit: parseFloat(updateOrderItemDto.unit.toString()),
+        baseUomId: updateOrderItemDto.baseUomId,
       },
     });
   

@@ -18,5 +18,9 @@ export class CreateSaleItemDto {
     @IsOptional()
     @IsString()
     status?: string;
+
+    baseUomId: string;
+    unit: number;
+    
     saleItemNotes: string[];
 }

@@ -8,46 +8,68 @@ import { Prisma } from '@prisma/client';
 export class SalesService {
   constructor(private readonly prisma: PrismaService) { }
   async create(createSaleDto: CreateSaleDto) {
-    const { ...saledata } = createSaleDto;
-    try {
-      const sale = await this.prisma.sales.create({
-        data: {
-          series: saledata.series,
-          operatorId: saledata.operatorId,
-          status: saledata.status,
-          orderDate: new Date(saledata.orderDate),
-          totalQuantity: parseFloat(saledata.totalQuantity.toString()),
-          note: saledata.note,
-          saleItems: {
-            create: createSaleDto.saleItems.map(item => ({
-              itemId: item.itemId,
-              uomId: item.uomId,
-              quantity: item.quantity,
-              description: item.description,
-              status: item.status,
-            })),
-          },
-        },
-      })
-      return sale;
+    const { saleItems, ...saledata } = createSaleDto;
 
+    try {
+        // Fetch the relevant items from the database
+        for (const item of saleItems) {
+            const relatedItem = await this.prisma.items.findUnique({
+                where: { id: item.itemId },
+                select: { quantity: true, name: true },
+            });
+
+            if (!relatedItem) {
+              throw new NotFoundException(`Item with ID ${item.itemId} not found.`);
+          }
+
+          if (item.status === 'Requested' && relatedItem.quantity < item.unit) {
+            throw new ConflictException(`Requested quantity is more than available quantity for item "${relatedItem.name}"`);
+          }
+        }
+
+        // If all validations pass, proceed with the sale creation
+        const sale = await this.prisma.sales.create({
+            data: {
+                series: saledata.series,
+                operatorId: saledata.operatorId,
+                status: saledata.status,
+                orderDate: new Date(saledata.orderDate),
+                totalQuantity: parseFloat(saledata.totalQuantity.toString()),
+                note: saledata.note,
+                saleItems: {
+                    create: saleItems.map(item => ({
+                        itemId: item.itemId,
+                        uomId: item.uomId,
+                        quantity: item.quantity,
+                        description: item.description,
+                        status: item.status,
+                        unit: parseFloat(item.unit.toString()),
+                        baseUomId: item.baseUomId,
+                    })),
+                },
+            },
+        });
+
+        return sale;
     } catch (error) {
       console.error("Error creating sale:", error);
 
+      // Re-throw the ConflictException as is
+      if (error instanceof ConflictException || error instanceof NotFoundException) {
+          throw error;
+      }
+
       // Check if it's a Prisma error
-      if (error.code === 'P2002') {
-        throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
-
-      // Log the error details for better debugging
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error('Prisma error details:', error.meta);
+          console.error('Prisma error details:', error.meta);
+          throw new ConflictException('Database error occurred. Please check your data.');
       }
 
-      // Throw a more informative error for better feedback
-      throw new Error(`An unexpected error occurred: ${error.message}`);
-    }
+      // For any other unexpected errors, rethrow the original error
+      throw new ConflictException(`An unexpected error occurred: ${error.message}`);
   }
+}
+
 
   async findAll(skip: number, take: number) {
     const [sales, total] = await this.prisma.$transaction([
@@ -90,7 +112,7 @@ export class SalesService {
   }
 
   async update(id: string, updateSaleDto: UpdateSaleDto) {
-    const {...saledata } = updateSaleDto;
+    const {saleItems, ...saledata } = updateSaleDto;
 
     // Fetch the existing sale and its items
     const existingSale = await this.prisma.sales.findUnique({
@@ -110,6 +132,26 @@ export class SalesService {
     const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
 
     try {
+
+      // Validate each sale item
+      for (const item of saleItems) {
+        const relatedItem = await this.prisma.items.findUnique({
+            where: { id: item.itemId },
+            select: { quantity: true, name: true }, // Fetch quantity and name
+        });
+
+        if (!relatedItem) {
+            throw new NotFoundException(`Item with ID ${item.itemId} not found.`);
+        }
+
+        if (item.status === 'Requested' && relatedItem.quantity < item.unit) {
+            throw new ConflictException(`Requested quantity is more than available quantity for item "${relatedItem.name}"`);
+        }
+    }
+
+
+
+
       const updatedSale = await this.prisma.sales.update({
         where: { id },
         data: {
@@ -130,6 +172,8 @@ export class SalesService {
                 quantity: item.quantity,
                 description: item.description,
                 status: item.status,
+                baseUomId: item.baseUomId,
+                unit: parseFloat(item.unit.toString()),
               },
               create: {
                 itemId: item.itemId,
@@ -137,6 +181,8 @@ export class SalesService {
                 quantity: item.quantity,
                 description: item.description,
                 status: item.status,
+                baseUomId: item.baseUomId,
+                unit: parseFloat(item.unit.toString()),
               },
             })),
           },
@@ -150,13 +196,20 @@ export class SalesService {
       return updatedSale;
     } catch (error) {
       console.error("Error updating sale:", error);
+// Re-throw the ConflictException as is
+if (error instanceof ConflictException || error instanceof NotFoundException) {
+  throw error;
+}
 
-      if (error.code === 'P2002') {
-        throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
+   // Check if it's a Prisma error
+   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    console.error('Prisma error details:', error.meta);
+    throw new ConflictException('Database error occurred. Please check your data.');
+}
 
-      throw new Error(`An unexpected error occurred: ${error.message}`);
-    }
+// For any other unexpected errors, rethrow the original error
+throw new ConflictException(`An unexpected error occurred: ${error.message}`);
+}
   }
 
   async remove(id: string) {

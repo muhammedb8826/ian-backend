@@ -34,7 +34,8 @@ export class OperatorStockService {
           createdAt: 'desc',
         },
         include: {
-          item: true,  // Include item details, such as item name
+          item: true, 
+          uoms: true,
         },
       }),
       this.prisma.operatorStock.count({
