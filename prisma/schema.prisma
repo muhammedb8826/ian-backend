@@ -91,9 +91,11 @@ model discounts {
   unit       Float
   percentage Float
   itemId     String
+  description String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  items items @relation(fields: [itemId], references: [id])
   @@unique([itemId, level])
 }
 
@@ -124,6 +126,7 @@ model items {
   services              services[]
   OrderItems            OrderItems[]
   pricing               Pricing[]
+  discounts             discounts[]
 }
 
 model purchases {
