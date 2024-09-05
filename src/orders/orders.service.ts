@@ -70,10 +70,10 @@ export class OrdersService {
             create: createOrderDto.orderItems.map(item => ({
               itemId: item.itemId,
               serviceId: item.serviceId,
-              width: parseFloat(item.width.toString()),
-              height: parseFloat(item.height.toString()),
+              width: parseFloat(item.width.toString()) || null,
+              height: parseFloat(item.height.toString()) || null,
               discount: parseFloat(item.discount.toString()),
-              level: item.level,
+              level: parseFloat(item.level.toString()),
               totalAmount: parseFloat(item.totalAmount.toString()),
               adminApproval: item.adminApproval,
               uomId: item.uomId,
@@ -203,7 +203,7 @@ export class OrdersService {
       include: {
         orderItems: true,
         paymentTerm: { include: { transactions: true } },
-        commission: { include: { transactions: true, salesPartner:true } },
+        commission: { include: { transactions: true, salesPartner: true } },
         salesPartner: true,
       },
     });
@@ -212,6 +212,52 @@ export class OrdersService {
       throw new Error('Order not found');
     }
 
+
+    // Validate missing fields for commission
+  if (commission) {
+    if (!commission.salesPartnerId) {
+      throw new ConflictException('Sales partner for commission is missing.');
+    }
+    if (!commission.transactions || commission.transactions.length === 0) {
+      throw new ConflictException('Commission transactions are missing.');
+    }
+    commission.transactions.forEach((transaction, index) => {
+      if (!transaction.paymentMethod) {
+        throw new ConflictException(`Payment method for commission transaction #${index + 1} is missing.`);
+      }
+      if(transaction.amount === null || transaction.amount === 0) {
+        throw new ConflictException(`Amount for commission transaction #${index + 1} is missing.`);
+      }
+
+      if(transaction.percentage === null || transaction.percentage === 0) {
+        throw new ConflictException(`Percentage for commission transaction #${index + 1} is missing.`);
+      }
+
+      if(transaction.date === null) {
+        throw new ConflictException(`Date for commission transaction #${index + 1} is missing.`);
+      }
+
+      if(transaction.reference === null) {
+        throw new ConflictException(`Reference for commission transaction #${index + 1} is missing.`);
+      }
+
+      if(transaction.status === null) {
+        throw new ConflictException(`Status for commission transaction #${index + 1} is missing.`);
+      }
+    });
+  }
+
+  // Validate missing fields for paymentTerm
+  if (paymentTerm) {
+    if (!paymentTerm.transactions || paymentTerm.transactions.length === 0) {
+      throw new BadRequestException('Payment term transactions are missing.');
+    }
+    paymentTerm.transactions.forEach((transaction, index) => {
+      if (!transaction.paymentMethod) {
+        throw new BadRequestException(`Payment method for payment term transaction #${index + 1} is missing.`);
+      }
+    });
+  }
 
     // Extract existing IDs for comparison
     const existingOrderItemIds = existingOrder.orderItems.map(item => item.id);
@@ -250,10 +296,10 @@ export class OrdersService {
               update: {
                 itemId: item.itemId,
                 serviceId: item.serviceId,
-                width: parseFloat(item.width.toString()),
-                height: parseFloat(item.height.toString()),
-                discount: parseFloat(item.discount.toString()),
-                level: item.level,
+                width: item.width !== null ? parseFloat(item.width.toString()) : null,
+                height: item.height !== null ? parseFloat(item.height.toString()) : null,
+                discount: item.discount !== null ? parseFloat(item.discount.toString()) : 0,
+                level: parseFloat(item.level.toString()),
                 totalAmount: parseFloat(item.totalAmount.toString()),
                 adminApproval: item.adminApproval,
                 uomId: item.uomId,
@@ -269,10 +315,10 @@ export class OrdersService {
               create: {
                 itemId: item.itemId,
                 serviceId: item.serviceId,
-                width: parseFloat(item.width.toString()),
-                height: parseFloat(item.height.toString()),
-                discount: parseFloat(item.discount.toString()),
-                level: item.level,
+                width: item.width !== null ? parseFloat(item.width.toString()) : 0,
+                height: item.height !== null ? parseFloat(item.height.toString()) : 0,
+                discount: item.discount !== null ? parseFloat(item.discount.toString()) : 0,
+                level: parseFloat(item.level.toString()),
                 totalAmount: parseFloat(item.totalAmount.toString()),
                 adminApproval: item.adminApproval,
                 uomId: item.uomId,
