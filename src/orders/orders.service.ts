@@ -110,39 +110,63 @@ export class OrdersService {
     }
   }
 
-  async findAll(skip: number, take: number, search?: string) {
+  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string) {
+    const whereClause: any = {};
+
+    // Handle the search filter
+    if (search) {
+        whereClause.OR = [
+            { id: { contains: search, mode: 'insensitive' } },
+            { series: { contains: search, mode: 'insensitive' } },
+            { customer: { fullName: { contains: search, mode: 'insensitive' } } },
+            { customer: { phone: { contains: search, mode: 'insensitive' } } },
+            { orderItems: { some: { description: { contains: search, mode: 'insensitive' } } } },
+            { paymentTerm: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
+            { commission: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
+            { salesPartner: { fullName: { contains: search, mode: 'insensitive' } } }
+        ];
+    }
+
+    // Handle the date range filter
+    if (startDate && endDate) {
+        whereClause.orderDate = {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+        };
+    }
+
+    // Fetch the orders and total count using the unified whereClause
     const [orders, total] = await this.prisma.$transaction([
-      this.prisma.orders.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          customer: true,
-          orderItems: {
+        this.prisma.orders.findMany({
+            skip: Number(skip),
+            take: Number(take),
+            orderBy: {
+                createdAt: 'desc',
+            },
             include: {
-              pricing: true,
-            }
-          },
-          paymentTerm: true,
-          commission: true,
-          salesPartner: true,
-        },
-        where: search ? {
-          OR: [
-            { id: { contains: search } },
-            { series: { contains: search } },
-          ],
-        } : {},
-      }),
-      this.prisma.orders.count(),
+                customer: true,
+                orderItems: {
+                    include: {
+                        pricing: true,
+                    },
+                },
+                paymentTerm: true,
+                commission: true,
+                salesPartner: true,
+            },
+            where: whereClause, // Use the unified whereClause for filtering
+        }),
+        this.prisma.orders.count({
+            where: whereClause, // Apply the same whereClause for the count
+        }),
     ]);
+
     return {
-      orders,
-      total,
+        orders,
+        total,
     };
-  }
+}
+
 
   async findAllOrders() {
     return this.prisma.orders.findMany({

@@ -5,7 +5,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(private readonly ordersService: OrdersService) { }
 
   @Post()
   create(@Body() createOrderDto: CreateOrderDto) {
@@ -13,10 +13,16 @@ export class OrdersController {
   }
 
   @Get()
-  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10, @Query('search') search?: string) {
+  findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     const skip = (page - 1) * limit
     const take = limit
-    return this.ordersService.findAll(skip, take, search);
+    return this.ordersService.findAll(skip, take, search, startDate, endDate);
   }
 
   @Get('all')
