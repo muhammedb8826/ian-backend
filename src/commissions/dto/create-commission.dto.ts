@@ -5,5 +5,6 @@ export class CreateCommissionDto {
     orderId: string
     salesPartnerId: string
     totalAmount: number
+    paidAmount: number
     transactions?: CreateCommissionTransactionDto[];
 }

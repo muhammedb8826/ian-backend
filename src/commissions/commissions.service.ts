@@ -11,24 +11,50 @@ export class CommissionsService {
       data: {
         orderId: createCommissionDto.orderId,
         totalAmount: createCommissionDto.totalAmount,
+        paidAmount: createCommissionDto.paidAmount,
         salesPartnerId: createCommissionDto.salesPartnerId,
       }
     })
   }
 
- async findAll() {
-    return this.prisma.commissions.findMany({
+ async findAll(skip: number, take: number) {
+  const [commissions, total] = await this.prisma.$transaction([
+    this.prisma.commissions.findMany({
+      skip: Number(skip),
+      take: Number(take),
+      orderBy: {
+        createdAt: 'desc'
+      },
       include: {
-        transactions : true
+        salesPartner: true,
+        transactions: true,
+        order: true
       }
-    });
+    }),
+    this.prisma.commissions.count()
+  ])
+  return {
+    commissions,
+    total
+  }
   }
 
+  async findAllCommissions() {
+    return this.prisma.commissions.findMany({
+      include: {
+        salesPartner: true,
+        transactions: true,
+        order: true
+      }
+    })
+  }
  async findOne(id: string) {
     return this.prisma.commissions.findUnique({
       where: {id},
       include: {
-        transactions: true
+        transactions: true,
+        salesPartner: true,
+        order: true
       }
     });
   }
@@ -40,6 +66,7 @@ export class CommissionsService {
         orderId: updateCommissionDto.orderId,
         totalAmount: updateCommissionDto.totalAmount,
         salesPartnerId: updateCommissionDto.salesPartnerId,
+        paidAmount: updateCommissionDto.paidAmount
       }
     })
   }

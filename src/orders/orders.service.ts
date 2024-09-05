@@ -48,7 +48,8 @@ export class OrdersService {
           commission: createOrderDto.commission ? {
             create: {
               salesPartner: { connect: { id: createOrderDto.commission.salesPartnerId } },
-              totalAmount: createOrderDto.commission.totalAmount,
+              totalAmount: parseFloat(createOrderDto.commission.totalAmount.toString()),
+              paidAmount: parseFloat(createOrderDto.commission.paidAmount.toString()),
               transactions: {
                 create: createOrderDto.commission.transactions?.map(transaction => ({
                   date: new Date(transaction.date),
@@ -395,6 +396,7 @@ export class OrdersService {
               update: {
                 salesPartnerId: commission.salesPartnerId,
                 totalAmount: parseFloat(commission.totalAmount.toString()),
+                paidAmount: parseFloat(commission.paidAmount.toString()),
                 transactions: {
                   upsert: commission.transactions.map(transaction => ({
                     where: { id: transaction.id || '' },
@@ -422,6 +424,7 @@ export class OrdersService {
               create: {
                 salesPartnerId: commission.salesPartnerId,
                 totalAmount: parseFloat(commission.totalAmount.toString()),
+                paidAmount: parseFloat(commission.paidAmount.toString()),
                 transactions: {
                   create: commission.transactions.map(transaction => ({
                     date: new Date(transaction.date),

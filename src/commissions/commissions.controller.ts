@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { CommissionsService } from './commissions.service';
 import { CreateCommissionDto } from './dto/create-commission.dto';
 import { UpdateCommissionDto } from './dto/update-commission.dto';
@@ -13,8 +13,15 @@ export class CommissionsController {
   }
 
   @Get()
-  findAll() {
-    return this.commissionsService.findAll();
+  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10) {
+    const skip = (page - 1) * limit
+    const take = limit
+    return this.commissionsService.findAll(skip, take);
+  }
+
+@Get('all')
+  findAllCommissions() {
+    return this.commissionsService.findAllCommissions();
   }
 
   @Get(':id')
