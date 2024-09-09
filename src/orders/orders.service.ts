@@ -110,7 +110,7 @@ export class OrdersService {
     }
   }
 
-  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string) {
+  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string, orderItemNames?: string[]) {
     const whereClause: any = {};
 
     // Handle the search filter
@@ -134,6 +134,17 @@ export class OrdersService {
             lte: new Date(endDate),
         };
     }
+
+    // Handle order item names filter
+    if (orderItemNames && orderItemNames.length > 0) {
+      whereClause.orderItems = {
+          some: {
+              name: {
+                  in: orderItemNames, // Filtering order items that match the given names
+              }
+          }
+      };
+  }
 
     // Fetch the orders and total count using the unified whereClause
     const [orders, total] = await this.prisma.$transaction([

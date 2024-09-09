@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreateCommissionDto } from './dto/create-commission.dto';
 import { UpdateCommissionDto } from './dto/update-commission.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -78,17 +78,17 @@ export class CommissionsService {
   async update(id: string, updateCommissionDto: UpdateCommissionDto) {
     const { totalAmount, paidAmount } = updateCommissionDto;
   
-    // Validate that paidAmount is not below zero or greater than totalAmount
-    if (parseFloat(paidAmount.toString()) < 0) {
-      throw new ConflictException('Paid amount cannot be below zero.');
-    }
+    // // Validate that paidAmount is not below zero or greater than totalAmount
+    // if (parseFloat(paidAmount.toString()) < 0) {
+    //   throw new ConflictException('Paid amount cannot be below zero.');
+    // }
     
-    if (parseFloat(paidAmount.toString()) > totalAmount) {
-      throw new ConflictException('Paid amount cannot exceed the total amount.');
-    }
+    // if (parseFloat(paidAmount.toString()) > totalAmount) {
+    //   throw new ConflictException('Paid amount cannot exceed the total amount.');
+    // }
   
-    // Check if totalAmount equals paidAmount
-    const isPaid = totalAmount === parseFloat(paidAmount.toString());
+    // // Check if totalAmount equals paidAmount
+    // const isPaid = totalAmount === parseFloat(paidAmount.toString());
   
     const updatedCommission = await this.prisma.commissions.update({
       where: {
@@ -108,7 +108,7 @@ export class CommissionsService {
               reference: transaction.reference,
               amount: transaction.amount,
               percentage: transaction.percentage,
-              status: isPaid ? 'paid' : 'pending', // Set status to 'paid' if amounts match
+              status: transaction.status, // Set status to 'paid' if amounts match
               description: transaction.description,
             },
           })),
