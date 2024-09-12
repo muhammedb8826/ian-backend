@@ -110,7 +110,7 @@ export class OrdersService {
     }
   }
 
-  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string, orderItemNames?: string[]) {
+  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item1?: string, item2?: string, item3?: string) {
     const whereClause: any = {};
 
     // Handle the search filter
@@ -135,19 +135,28 @@ export class OrdersService {
         };
     }
 
-    // Handle order item names filter
-    if (orderItemNames && orderItemNames.length > 0) {
-      whereClause.orderItems = {
-          some: {
-              name: {
-                  in: orderItemNames, // Filtering order items that match the given names
-              }
-          }
-      };
-  }
+
+// Collect the provided item names into an array
+const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out undefined or null values
+
+   // Handle order item names filter
+   if (orderItemNames.length > 0) {
+    whereClause.orderItems = {
+        some: {
+            item: {
+                OR: orderItemNames.map(name => ({
+                    name: {
+                        contains: name, // Case-insensitive search in lowercase
+                        mode: 'insensitive',
+                    }
+                }))
+            }
+        }
+    };
+}
 
     // Fetch the orders and total count using the unified whereClause
-    const [orders, total] = await this.prisma.$transaction([
+    const [orders, total, grandTotalSum] = await this.prisma.$transaction([
         this.prisma.orders.findMany({
             skip: Number(skip),
             take: Number(take),
@@ -165,16 +174,23 @@ export class OrdersService {
                 commission: true,
                 salesPartner: true,
             },
-            where: whereClause, // Use the unified whereClause for filtering
+            where: whereClause, // Use the unified whereClause
         }),
-        this.prisma.orders.count({
-            where: whereClause, // Apply the same whereClause for the count
+          this.prisma.orders.count({
+            where: whereClause, // Use the same whereClause for count
         }),
+        this.prisma.orders.aggregate({
+          _sum: {
+              grandTotal: true,
+          },
+          where: whereClause, // Use the same whereClause for sum
+      }),
     ]);
 
     return {
         orders,
         total,
+        grandTotalSum: grandTotalSum._sum.grandTotal ?? 0, // Return the sum of grandTotal or 0 if no orders found
     };
 }
 
