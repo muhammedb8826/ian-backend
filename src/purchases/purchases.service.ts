@@ -62,8 +62,48 @@ export class PurchasesService {
     }
   }
 
-  async findAll(skip: number, take: number) {
-    const [purchases, total] = await this.prisma.$transaction([
+  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item1?: string, item2?: string, item3?: string) {
+    const whereClause: any = {};
+
+    // Handle the search filter
+    if (search) {
+      whereClause.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
+        { series: { contains: search, mode: 'insensitive' } },
+        { vendor: { fullName: { contains: search, mode: 'insensitive' } } },
+        { vendor: { phone: { contains: search, mode: 'insensitive' } } },
+        { purchaseItems: { some: { description: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+
+    // Handle the date range filter
+    if (startDate && endDate) {
+      whereClause.orderDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
+    }
+
+    // Collect the provided item names into an array
+    const purchaseItemNames = [item1, item2, item3].filter(Boolean); // Filters out undefined or null values
+
+    // Handle order item names filter
+    if (purchaseItemNames.length > 0) {
+      whereClause.purchaseItems = {
+        some: {
+          item: {
+            OR: purchaseItemNames.map(name => ({
+              name: {
+                contains: name, // Case-insensitive search in lowercase
+                mode: 'insensitive',
+              }
+            }))
+          }
+        }
+      };
+    }
+
+    const [purchases, total, grandTotalSum] = await this.prisma.$transaction([
       this.prisma.purchases.findMany({
         skip: Number(skip),
         take: Number(take),
@@ -75,12 +115,22 @@ export class PurchasesService {
           purchaseItems: true,
           purchaser: true
         },
+        where: whereClause, // Use the unified whereClause
       }),
-      this.prisma.purchases.count(),
+      this.prisma.purchases.count({
+        where: whereClause, // Use the same whereClause for count
+      }),
+      this.prisma.purchases.aggregate({
+        _sum: {
+          amount: true,
+        },
+        where: whereClause, // Use the same whereClause for sum
+      }),
     ]);
     return {
       purchases,
       total,
+      grandTotalSum: grandTotalSum._sum.amount ?? 0, // Return the sum of grandTotal or 0 if no orders found
     };
   }
 

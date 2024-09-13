@@ -13,10 +13,19 @@ export class PurchasesController {
   }
 
   @Get()
-  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10) {
+  findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('item1') item1?: string,
+    @Query('item2') item2?: string,
+    @Query('item3') item3?: string,
+  ) {
     const skip = (page - 1) * limit
     const take = limit
-    return this.purchasesService.findAll(skip, take);
+    return this.purchasesService.findAll(skip, take, search, startDate, endDate, item1, item2, item3);
   }
 
   @Get('all')
