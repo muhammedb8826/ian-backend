@@ -17,13 +17,13 @@ export class UsersController {
     storage: diskStorage({
       destination: './uploads/profile',
       filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
-        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+        cb(null, uniqueSuffix);
       },
     }),
     fileFilter: (req, file, cb) => {
-      if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|tiff|bmp)$/)) {
+      const validExtensions = /\.(jpg|jpeg|png|gif|webp|tiff|bmp)$/i;
+      if (!file.originalname.match(validExtensions)) {
         return cb(new BadRequestException('Only image files are allowed!'), false);
       }
       cb(null, true);
@@ -66,17 +66,17 @@ export class UsersController {
       storage: diskStorage({
           destination: './uploads/profile',
           filename: (req, file, cb) => {
-              const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-              const ext = extname(file.originalname);
-              cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+            const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+            cb(null, uniqueSuffix);
           },
-      }),
-      fileFilter: (req, file, cb) => {
-          if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|tiff|bmp)$/)) {
-              return cb(new BadRequestException('Only image files are allowed!'), false);
+        }),
+        fileFilter: (req, file, cb) => {
+          const validExtensions = /\.(jpg|jpeg|png|gif|webp|tiff|bmp)$/i;
+          if (!file.originalname.match(validExtensions)) {
+            return cb(new BadRequestException('Only image files are allowed!'), false);
           }
           cb(null, true);
-      },
+        },
   }))
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @UploadedFile() profile: Express.Multer.File) {
       if (profile) {
