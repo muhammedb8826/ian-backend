@@ -14,6 +14,7 @@ export class AtStrategy extends PassportStrategy(Strategy, 'jwt') {
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             secretOrKey: 'at-secret',
+            ignoreExpiration: false
         });
     }
 
@@ -24,8 +25,8 @@ export class AtStrategy extends PassportStrategy(Strategy, 'jwt') {
             }
         })
         if (!user) {
-            throw new UnauthorizedException('User not found');
-        }
+            throw new UnauthorizedException();
+          }
         delete user.password
         return user;
     }

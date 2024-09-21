@@ -10,6 +10,17 @@ export class OrdersService {
   constructor(private prisma: PrismaService) { }
   async create(createOrderDto: CreateOrderDto) {
     try {
+// Validate pricingId for each orderItem
+const orderItemsWithPricing = createOrderDto.orderItems.filter(item => item.pricingId);
+for (const item of orderItemsWithPricing) {
+  const pricingExists = await this.prisma.pricing.findUnique({
+    where: { id: item.pricingId },
+  });
+  if (!pricingExists) {
+    throw new ConflictException(`Pricing with id ${item.pricingId} not found.`);
+  }
+}
+
       const order = await this.prisma.orders.create({
         data: {
           series: createOrderDto.series,

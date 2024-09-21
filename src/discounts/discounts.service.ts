@@ -9,6 +9,15 @@ export class DiscountsService {
  async create(createDiscountDto: CreateDiscountDto) {
     const { itemId, level } = createDiscountDto;
 
+    // Check if the item exists
+  const item = await this.prisma.items.findUnique({
+    where: { id: itemId },
+  });
+
+  if (!item) {
+    throw new ConflictException('Item not found');
+  }
+
     const existing =await this.prisma.discounts.findUnique({
       where: { itemId_level: { itemId, level } }
     });

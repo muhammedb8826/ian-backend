@@ -8,34 +8,34 @@ export class DiscountsController {
   constructor(private readonly discountsService: DiscountsService) {}
 
   @Post()
-  create(@Body() createDiscountDto: CreateDiscountDto) {
+  async create(@Body() createDiscountDto: CreateDiscountDto) {
     return this.discountsService.create(createDiscountDto);
   }
 
   @Get()
-  findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10) {
+  async findAll(@Query('page') page:number = 1, @Query('limit') limit: number = 10) {
     const skip = (page - 1) * limit
     const take = limit
     return this.discountsService.findAll(skip, take);
   }
 
   @Get('all')
-  findAllDiscounts() {
+  async findAllDiscounts() {
     return this.discountsService.findAllDiscounts();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string) {
     return this.discountsService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDiscountDto: UpdateDiscountDto) {
+  async update(@Param('id') id: string, @Body() updateDiscountDto: UpdateDiscountDto) {
     return this.discountsService.update(id, updateDiscountDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string) {
     return this.discountsService.remove(id);
   }
 }
