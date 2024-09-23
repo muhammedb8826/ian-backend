@@ -23,6 +23,8 @@ async function bootstrap() {
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
   });
-  await app.listen(8080);
+
+  const port = process.env.PORT || 8080; // Default to port 3000 if PORT is not set
+  await app.listen(port);
 }
 bootstrap();
