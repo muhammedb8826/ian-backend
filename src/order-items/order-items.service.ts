@@ -9,7 +9,8 @@ export class OrderItemsService {
   constructor(private prisma: PrismaService) { }
   async create(createOrderItemDto: CreateOrderItemDto) {
     try {
-      return await this.prisma.orderItems.create({
+      // Create the order item
+      const createdOrderItem = await this.prisma.orderItems.create({
         data: {
           orderId: createOrderItemDto.orderId,
           itemId: createOrderItemDto.itemId,
@@ -29,26 +30,52 @@ export class OrderItemsService {
           pricingId: createOrderItemDto.pricingId,
           unit: parseFloat(createOrderItemDto.unit.toString()),
           baseUomId: createOrderItemDto.baseUomId,
-        }
-      })
-    } catch (error) {
-      console.error('Error creating payment items:', error);
+        },
+      });
 
-      // Check for Prisma unique constraint error
+      // After updating the order item, fetch all related order items
+      const orderItems = await this.prisma.orderItems.findMany({
+        where: { orderId: createOrderItemDto.orderId },
+      });
+
+      // Check if all statuses are the same or partially complete
+      const allReceived = orderItems.every(item => item.status === 'Received');
+      const allPrinted = orderItems.every(item => item.status === 'Printed');
+      const allCompleted = orderItems.every(item => item.status === 'Completed');
+      const allDelivered = orderItems.every(item => item.status === 'Delivered');
+
+      let newOrderStatus = 'Processing'; // Default status
+
+      if (allReceived) {
+        newOrderStatus = 'Pending';
+      } else if (allPrinted) {
+        newOrderStatus = 'Printed';
+      } else if (allCompleted) {
+        newOrderStatus = 'Completed';
+      } else if (allDelivered) {
+        newOrderStatus = 'Delivered';
+      }
+      // Update the order with the new status
+      await this.prisma.orders.update({
+        where: { id: createOrderItemDto.orderId },
+        data: { status: newOrderStatus },
+      });
+      return createdOrderItem;
+    } catch (error) {
+      console.error('Error creating order item:', error);
+
       if (error.code === 'P2002') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
 
-      // Prisma-specific error details
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         console.error('Prisma error details:', error.meta);
       }
 
-      // General error handling
       throw new Error(`An unexpected error occurred: ${error.message}`);
     }
-
   }
+
 
   async findAll(orderId: string) {
     const orderItems = await this.prisma.orderItems.findMany({
@@ -90,7 +117,7 @@ export class OrderItemsService {
 
           // Throw an error if the operatorStock entry is not found
           if (!operatorStock) {
-            throw new ConflictException(`Please make a request for item ${item.name} before trying to print` );
+            throw new ConflictException(`Please make a request for item ${item.name} before trying to print`);
           }
 
           // Check if the stock quantity is sufficient
@@ -153,6 +180,34 @@ export class OrderItemsService {
         unit: parseFloat(updateOrderItemDto.unit.toString()),
         baseUomId: updateOrderItemDto.baseUomId,
       },
+    });
+
+    // After updating the order item, fetch all related order items
+    const orderItems = await this.prisma.orderItems.findMany({
+      where: { orderId: updateOrderItemDto.orderId },
+    });
+
+    // Check if all statuses are the same or partially complete
+    const allReceived = orderItems.every(item => item.status === 'Received');
+    const allPrinted = orderItems.every(item => item.status === 'Printed');
+    const allCompleted = orderItems.every(item => item.status === 'Completed');
+    const allDelivered = orderItems.every(item => item.status === 'Delivered');
+
+    let newOrderStatus = 'Processing'; // Default status
+
+    if (allReceived) {
+      newOrderStatus = 'Pending';
+    } else if (allPrinted) {
+      newOrderStatus = 'Printed';
+    } else if (allCompleted) {
+      newOrderStatus = 'Completed';
+    } else if (allDelivered) {
+      newOrderStatus = 'Delivered';
+    }
+    // Update the order with the new status
+    await this.prisma.orders.update({
+      where: { id: updateOrderItemDto.orderId },
+      data: { status: newOrderStatus },
     });
 
     return updatedOrderItem;
