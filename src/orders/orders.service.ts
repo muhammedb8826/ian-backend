@@ -4,22 +4,23 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { CreatePaymentTermDto } from 'src/payment-terms/dto/create-payment-term.dto';
 
 @Injectable()
 export class OrdersService {
   constructor(private prisma: PrismaService) { }
   async create(createOrderDto: CreateOrderDto) {
     try {
-// Validate pricingId for each orderItem
-const orderItemsWithPricing = createOrderDto.orderItems.filter(item => item.pricingId);
-for (const item of orderItemsWithPricing) {
-  const pricingExists = await this.prisma.pricing.findUnique({
-    where: { id: item.pricingId },
-  });
-  if (!pricingExists) {
-    throw new ConflictException(`Pricing with id ${item.pricingId} not found.`);
-  }
-}
+      // Validate pricingId for each orderItem
+      const orderItemsWithPricing = createOrderDto.orderItems.filter(item => item.pricingId);
+      for (const item of orderItemsWithPricing) {
+        const pricingExists = await this.prisma.pricing.findUnique({
+          where: { id: item.pricingId },
+        });
+        if (!pricingExists) {
+          throw new ConflictException(`Pricing with id ${item.pricingId} not found.`);
+        }
+      }
 
       const order = await this.prisma.orders.create({
         data: {
@@ -42,7 +43,7 @@ for (const item of orderItemsWithPricing) {
             create: {
               totalAmount: parseFloat(createOrderDto.paymentTerm.totalAmount.toString()),
               remainingAmount: parseFloat(createOrderDto.paymentTerm.remainingAmount.toString()),
-              status: createOrderDto.paymentTerm.status,
+              status: this.getPaymentTermStatus(createOrderDto.paymentTerm, createOrderDto.grandTotal),
               forcePayment: createOrderDto.paymentTerm.forcePayment,
               transactions: {
                 create: createOrderDto.paymentTerm.transactions?.map(transaction => ({
@@ -126,84 +127,84 @@ for (const item of orderItemsWithPricing) {
 
     // Handle the search filter
     if (search) {
-        whereClause.OR = [
-            { id: { contains: search, mode: 'insensitive' } },
-            { series: { contains: search, mode: 'insensitive' } },
-            { customer: { fullName: { contains: search, mode: 'insensitive' } } },
-            { customer: { phone: { contains: search, mode: 'insensitive' } } },
-            { orderItems: { some: { description: { contains: search, mode: 'insensitive' } } } },
-            { paymentTerm: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
-            { commission: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
-            { salesPartner: { fullName: { contains: search, mode: 'insensitive' } } }
-        ];
+      whereClause.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
+        { series: { contains: search, mode: 'insensitive' } },
+        { customer: { fullName: { contains: search, mode: 'insensitive' } } },
+        { customer: { phone: { contains: search, mode: 'insensitive' } } },
+        { orderItems: { some: { description: { contains: search, mode: 'insensitive' } } } },
+        { paymentTerm: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
+        { commission: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
+        { salesPartner: { fullName: { contains: search, mode: 'insensitive' } } }
+      ];
     }
 
     // Handle the date range filter
     if (startDate && endDate) {
-        whereClause.orderDate = {
-            gte: new Date(startDate),
-            lte: new Date(endDate),
-        };
+      whereClause.orderDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
     }
 
 
-// Collect the provided item names into an array
-const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out undefined or null values
+    // Collect the provided item names into an array
+    const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out undefined or null values
 
-   // Handle order item names filter
-   if (orderItemNames.length > 0) {
-    whereClause.orderItems = {
+    // Handle order item names filter
+    if (orderItemNames.length > 0) {
+      whereClause.orderItems = {
         some: {
-            item: {
-                OR: orderItemNames.map(name => ({
-                    name: {
-                        contains: name, // Case-insensitive search in lowercase
-                        mode: 'insensitive',
-                    }
-                }))
-            }
+          item: {
+            OR: orderItemNames.map(name => ({
+              name: {
+                contains: name, // Case-insensitive search in lowercase
+                mode: 'insensitive',
+              }
+            }))
+          }
         }
-    };
-}
+      };
+    }
 
     // Fetch the orders and total count using the unified whereClause
     const [orders, total, grandTotalSum] = await this.prisma.$transaction([
-        this.prisma.orders.findMany({
-            skip: Number(skip),
-            take: Number(take),
-            orderBy: {
-                createdAt: 'desc',
-            },
+      this.prisma.orders.findMany({
+        skip: Number(skip),
+        take: Number(take),
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          customer: true,
+          orderItems: {
             include: {
-                customer: true,
-                orderItems: {
-                    include: {
-                        pricing: true,
-                    },
-                },
-                paymentTerm: true,
-                commission: true,
-                salesPartner: true,
+              pricing: true,
             },
-            where: whereClause, // Use the unified whereClause
-        }),
-          this.prisma.orders.count({
-            where: whereClause, // Use the same whereClause for count
-        }),
-        this.prisma.orders.aggregate({
-          _sum: {
-              grandTotal: true,
           },
-          where: whereClause, // Use the same whereClause for sum
+          paymentTerm: true,
+          commission: true,
+          salesPartner: true,
+        },
+        where: whereClause, // Use the unified whereClause
+      }),
+      this.prisma.orders.count({
+        where: whereClause, // Use the same whereClause for count
+      }),
+      this.prisma.orders.aggregate({
+        _sum: {
+          grandTotal: true,
+        },
+        where: whereClause, // Use the same whereClause for sum
       }),
     ]);
 
     return {
-        orders,
-        total,
-        grandTotalSum: grandTotalSum._sum.grandTotal ?? 0, // Return the sum of grandTotal or 0 if no orders found
+      orders,
+      total,
+      grandTotalSum: grandTotalSum._sum.grandTotal ?? 0, // Return the sum of grandTotal or 0 if no orders found
     };
-}
+  }
 
 
   async findAllOrders() {
@@ -275,52 +276,51 @@ const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out und
       throw new Error('Order not found');
     }
 
-
     // Validate missing fields for commission
-  if (commission) {
-    if (!commission.salesPartnerId) {
-      throw new ConflictException('Sales partner for commission is missing.');
+    if (commission) {
+      if (!commission.salesPartnerId) {
+        throw new ConflictException('Sales partner for commission is missing.');
+      }
+      if (!commission.transactions || commission.transactions.length === 0) {
+        throw new ConflictException('Commission transactions are missing.');
+      }
+      commission.transactions.forEach((transaction, index) => {
+        if (!transaction.paymentMethod) {
+          throw new ConflictException(`Payment method for commission transaction #${index + 1} is missing.`);
+        }
+        if (transaction.amount === null || transaction.amount === 0) {
+          throw new ConflictException(`Amount for commission transaction #${index + 1} is missing.`);
+        }
+
+        if (transaction.percentage === null || transaction.percentage === 0) {
+          throw new ConflictException(`Percentage for commission transaction #${index + 1} is missing.`);
+        }
+
+        if (transaction.date === null) {
+          throw new ConflictException(`Date for commission transaction #${index + 1} is missing.`);
+        }
+
+        if (transaction.reference === null) {
+          throw new ConflictException(`Reference for commission transaction #${index + 1} is missing.`);
+        }
+
+        if (transaction.status === null) {
+          throw new ConflictException(`Status for commission transaction #${index + 1} is missing.`);
+        }
+      });
     }
-    if (!commission.transactions || commission.transactions.length === 0) {
-      throw new ConflictException('Commission transactions are missing.');
+
+    // Validate missing fields for paymentTerm
+    if (paymentTerm) {
+      if (!paymentTerm.transactions || paymentTerm.transactions.length === 0) {
+        throw new BadRequestException('Payment term transactions are missing.');
+      }
+      paymentTerm.transactions.forEach((transaction, index) => {
+        if (!transaction.paymentMethod) {
+          throw new BadRequestException(`Payment method for payment term transaction #${index + 1} is missing.`);
+        }
+      });
     }
-    commission.transactions.forEach((transaction, index) => {
-      if (!transaction.paymentMethod) {
-        throw new ConflictException(`Payment method for commission transaction #${index + 1} is missing.`);
-      }
-      if(transaction.amount === null || transaction.amount === 0) {
-        throw new ConflictException(`Amount for commission transaction #${index + 1} is missing.`);
-      }
-
-      if(transaction.percentage === null || transaction.percentage === 0) {
-        throw new ConflictException(`Percentage for commission transaction #${index + 1} is missing.`);
-      }
-
-      if(transaction.date === null) {
-        throw new ConflictException(`Date for commission transaction #${index + 1} is missing.`);
-      }
-
-      if(transaction.reference === null) {
-        throw new ConflictException(`Reference for commission transaction #${index + 1} is missing.`);
-      }
-
-      if(transaction.status === null) {
-        throw new ConflictException(`Status for commission transaction #${index + 1} is missing.`);
-      }
-    });
-  }
-
-  // Validate missing fields for paymentTerm
-  if (paymentTerm) {
-    if (!paymentTerm.transactions || paymentTerm.transactions.length === 0) {
-      throw new BadRequestException('Payment term transactions are missing.');
-    }
-    paymentTerm.transactions.forEach((transaction, index) => {
-      if (!transaction.paymentMethod) {
-        throw new BadRequestException(`Payment method for payment term transaction #${index + 1} is missing.`);
-      }
-    });
-  }
 
     // Extract existing IDs for comparison
     const existingOrderItemIds = existingOrder.orderItems.map(item => item.id);
@@ -349,6 +349,57 @@ const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out und
           fileNames: orderData.fileNames,
           adminApproval: orderData.adminApproval,
 
+
+          // Update Payment Term
+          paymentTerm: paymentTerm ? {
+            delete: existingOrder.paymentTerm ? { id: existingOrder.paymentTerm.id } : undefined,
+            upsert: {
+              where: { id: paymentTerm.id || '' },
+              update: {
+                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
+                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
+                status: this.getPaymentTermStatus(paymentTerm, parseFloat(orderData.grandTotal.toString())),
+                forcePayment: paymentTerm.forcePayment,
+                transactions: {
+                  upsert: paymentTerm.transactions.map(transaction => ({
+                    where: { id: transaction.id || '' },
+                    update: {
+                      date: new Date(transaction.date),
+                      paymentMethod: transaction.paymentMethod,
+                      reference: transaction.reference,
+                      amount: parseFloat(transaction.amount.toString()),
+                      status: transaction.status,
+                      description: transaction.description,
+                    },
+                    create: {
+                      date: new Date(transaction.date),
+                      paymentMethod: transaction.paymentMethod,
+                      reference: transaction.reference,
+                      amount: parseFloat(transaction.amount.toString()),
+                      status: transaction.status,
+                      description: transaction.description,
+                    },
+                  })),
+                },
+              },
+              create: {
+                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
+                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
+                status: paymentTerm.status,
+                forcePayment: paymentTerm.forcePayment,
+                transactions: {
+                  create: paymentTerm.transactions.map(transaction => ({
+                    date: new Date(transaction.date),
+                    paymentMethod: transaction.paymentMethod,
+                    reference: transaction.reference,
+                    amount: parseFloat(transaction.amount.toString()),
+                    status: transaction.status,
+                    description: transaction.description,
+                  })),
+                },
+              },
+            },
+          } : undefined,
 
 
           // Update Order Items
@@ -396,59 +447,6 @@ const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out und
               },
             })),
           },
-
-
-          // Update Payment Term
-          paymentTerm: paymentTerm ? {
-            delete: existingOrder.paymentTerm ? { id: existingOrder.paymentTerm.id } : undefined,
-            upsert: {
-              where: { id: paymentTerm.id || '' },
-              update: {
-                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
-                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-                status: paymentTerm.status,
-                forcePayment: paymentTerm.forcePayment,
-                transactions: {
-                  upsert: paymentTerm.transactions.map(transaction => ({
-                    where: { id: transaction.id || '' },
-                    update: {
-                      date: new Date(transaction.date),
-                      paymentMethod: transaction.paymentMethod,
-                      reference: transaction.reference,
-                      amount: parseFloat(transaction.amount.toString()),
-                      status: transaction.status,
-                      description: transaction.description,
-                    },
-                    create: {
-                      date: new Date(transaction.date),
-                      paymentMethod: transaction.paymentMethod,
-                      reference: transaction.reference,
-                      amount: parseFloat(transaction.amount.toString()),
-                      status: transaction.status,
-                      description: transaction.description,
-                    },
-                  })),
-                },
-              },
-              create: {
-                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
-                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-                status: paymentTerm.status,
-                forcePayment: paymentTerm.forcePayment,
-                transactions: {
-                  create: paymentTerm.transactions.map(transaction => ({
-                    date: new Date(transaction.date),
-                    paymentMethod: transaction.paymentMethod,
-                    reference: transaction.reference,
-                    amount: parseFloat(transaction.amount.toString()),
-                    status: transaction.status,
-                    description: transaction.description,
-                  })),
-                },
-              },
-            },
-          } : undefined,
-
 
           // Update Commission
           commission: commission ? {
@@ -539,4 +537,14 @@ const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out und
 
     }
   }
+
+  getPaymentTermStatus(paymentTerm: CreatePaymentTermDto, grandTotal: number) {
+    if (paymentTerm.remainingAmount > 0 && paymentTerm.remainingAmount < grandTotal) {
+      return 'Partially Paid';
+    } else if (paymentTerm.remainingAmount === 0) {
+      return 'Fully Paid';
+    } else if (paymentTerm.remainingAmount === grandTotal) {
+      return 'Not Paid';
+  }
+}
 }
