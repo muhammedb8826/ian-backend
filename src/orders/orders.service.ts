@@ -4,7 +4,6 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { CreatePaymentTermDto } from 'src/payment-terms/dto/create-payment-term.dto';
 
 @Injectable()
 export class OrdersService {
@@ -43,7 +42,7 @@ export class OrdersService {
             create: {
               totalAmount: parseFloat(createOrderDto.paymentTerm.totalAmount.toString()),
               remainingAmount: parseFloat(createOrderDto.paymentTerm.remainingAmount.toString()),
-              status: this.getPaymentTermStatus(createOrderDto.paymentTerm, createOrderDto.grandTotal),
+              status: this.getPaymentTermStatus(createOrderDto.paymentTerm.remainingAmount, createOrderDto.grandTotal),
               forcePayment: createOrderDto.paymentTerm.forcePayment,
               transactions: {
                 create: createOrderDto.paymentTerm.transactions?.map(transaction => ({
@@ -327,7 +326,6 @@ export class OrdersService {
     const newOrderItemIds = orderItems.map(item => item.id);
     const orderItemsToDelete = existingOrderItemIds.filter(id => !newOrderItemIds.includes(id));
 
-
     try {
       // Perform the update operation
       const updatedOrder = await this.prisma.orders.update({
@@ -358,7 +356,7 @@ export class OrdersService {
               update: {
                 totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
                 remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-                status: this.getPaymentTermStatus(paymentTerm, parseFloat(orderData.grandTotal.toString())),
+                status: this.getPaymentTermStatus(paymentTerm.remainingAmount, orderData.grandTotal),
                 forcePayment: paymentTerm.forcePayment,
                 transactions: {
                   upsert: paymentTerm.transactions.map(transaction => ({
@@ -368,7 +366,7 @@ export class OrdersService {
                       paymentMethod: transaction.paymentMethod,
                       reference: transaction.reference,
                       amount: parseFloat(transaction.amount.toString()),
-                      status: transaction.status,
+                      status: transaction.status  ? 'Paid' : 'Pending',
                       description: transaction.description,
                     },
                     create: {
@@ -376,7 +374,7 @@ export class OrdersService {
                       paymentMethod: transaction.paymentMethod,
                       reference: transaction.reference,
                       amount: parseFloat(transaction.amount.toString()),
-                      status: transaction.status,
+                      status: transaction.status  ? 'Paid' : 'Pending',
                       description: transaction.description,
                     },
                   })),
@@ -385,7 +383,7 @@ export class OrdersService {
               create: {
                 totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
                 remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-                status: paymentTerm.status,
+                status: this.getPaymentTermStatus(paymentTerm.remainingAmount, orderData.grandTotal),
                 forcePayment: paymentTerm.forcePayment,
                 transactions: {
                   create: paymentTerm.transactions.map(transaction => ({
@@ -538,12 +536,12 @@ export class OrdersService {
     }
   }
 
-  getPaymentTermStatus(paymentTerm: CreatePaymentTermDto, grandTotal: number) {
-    if (paymentTerm.remainingAmount > 0 && paymentTerm.remainingAmount < grandTotal) {
+  getPaymentTermStatus(remainingAmount, grandTotal: number) {
+    if (remainingAmount > 0 && remainingAmount < grandTotal) {
       return 'Partially Paid';
-    } else if (paymentTerm.remainingAmount === 0) {
+    } else if (remainingAmount === 0) {
       return 'Fully Paid';
-    } else if (paymentTerm.remainingAmount === grandTotal) {
+    } else if (remainingAmount === grandTotal) {
       return 'Not Paid';
   }
 }
