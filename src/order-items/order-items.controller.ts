@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { OrderItemsService } from './order-items.service';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
@@ -10,6 +10,16 @@ export class OrderItemsController {
   @Post()
   async create(@Body() createOrderItemDto: CreateOrderItemDto) {
     return this.orderItemsService.create(createOrderItemDto);
+  }
+
+  @Get('all')
+  async findAllOrderItems(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit
+    const take = limit
+    return this.orderItemsService.findAllOrderItems(skip, take);
   }
 
   @Get(':orderId')

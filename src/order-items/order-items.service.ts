@@ -82,8 +82,10 @@ export class OrderItemsService {
       where: { orderId },
       include: {
         order: true,
+        uom: true,
         pricing: true,
         item: true,
+        service: true,
         orderItemNotes: {
           include: {
             user: true,
@@ -94,6 +96,37 @@ export class OrderItemsService {
 
     return orderItems;
   }
+
+  async findAllOrderItems(skip: number, take: number) {
+    const [orderItems, total] = await this.prisma.$transaction([
+      this.prisma.orderItems.findMany({
+      skip: +skip,
+      take: +take,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        order: true,
+        uom: true,
+        pricing: true,
+        item: true,
+        service: true,
+        orderItemNotes: {
+          include: {
+            user: true,
+          }
+        }
+      }
+    }),
+    this.prisma.orderItems.count()
+    ]);
+
+    return {
+      orderItems,
+      total
+    };
+  }
+
 
 
   async update(id: string, updateOrderItemDto: UpdateOrderItemDto) {

@@ -83,6 +83,7 @@ model services {
   updatedAt   DateTime  @updatedAt
   pricing     Pricing[]
   items       items[]   @relation("itemsToservices")
+  orderItems  OrderItems[]
 }
 
 model discounts {
@@ -359,6 +360,7 @@ model OrderItems {
   order          orders           @relation(fields: [orderId], references: [id])
   pricing        Pricing          @relation(fields: [pricingId], references: [id])
   uom            UOM              @relation(fields: [uomId], references: [id])
+  service        services         @relation(fields: [serviceId], references: [id])
 
   @@unique([orderId, itemId, serviceId])
 }

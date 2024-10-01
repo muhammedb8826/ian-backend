@@ -213,7 +213,10 @@ export class OrdersService {
         orderItems: {
           include: {
             pricing: true,
-          }
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
         paymentTerm: {
           include: {
