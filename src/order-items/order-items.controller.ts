@@ -16,10 +16,15 @@ export class OrderItemsController {
   async findAllOrderItems(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('item') item?: string,
+    @Query('status') status?: string,
   ) {
     const skip = (page - 1) * limit
     const take = limit
-    return this.orderItemsService.findAllOrderItems(skip, take);
+    return this.orderItemsService.findAllOrderItems(skip, take, search, startDate, endDate, item, status);
   }
 
   @Get(':orderId')

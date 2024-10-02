@@ -97,16 +97,89 @@ export class OrderItemsService {
     return orderItems;
   }
 
-  async findAllOrderItems(skip: number, take: number) {
-    const [orderItems, total] = await this.prisma.$transaction([
-      this.prisma.orderItems.findMany({
+  async findAllOrderItems(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item?: string, status?: string) {
+    const whereClause: any = {};
+
+
+    // Search filter for series, fullName, or phone
+    if (search) {
+      whereClause.OR = [
+        {
+          order: {
+            series: {
+              contains: search,
+              mode: 'insensitive', // Case insensitive search
+            },
+          },
+        },
+        {
+          order: {
+            customer: {
+              OR: [
+                {
+                  fullName: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  phone: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  email: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ];
+    }
+
+    // Filter by start and end dates
+    if (startDate && endDate) {
+      whereClause.order = {
+        ...whereClause.order,
+        orderDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      };
+    }
+
+    if (item) {
+      whereClause.item = {
+        name: {
+          contains: item,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    if (status) {
+      whereClause.status = status;
+    }
+
+    // Prisma transaction for querying order items, total count, and sum of totalAmount
+  const [orderItems, total, totalAmountSum] = await this.prisma.$transaction([
+    this.prisma.orderItems.findMany({
       skip: +skip,
       take: +take,
+      where: whereClause,
       orderBy: {
         createdAt: 'desc',
       },
       include: {
-        order: true,
+        order: {
+          include: {
+            customer: true,
+          },
+        },
         uom: true,
         pricing: true,
         item: true,
@@ -118,14 +191,23 @@ export class OrderItemsService {
         }
       }
     }),
-    this.prisma.orderItems.count()
-    ]);
+    this.prisma.orderItems.count({
+      where: whereClause,
+    }),
+    this.prisma.orderItems.aggregate({
+      where: whereClause,
+      _sum: {
+        totalAmount: true, // Summing the totalAmount field
+      },
+    }),
+  ]);
 
-    return {
-      orderItems,
-      total
-    };
-  }
+  return {
+    orderItems,
+    total,
+    totalAmountSum: totalAmountSum._sum.totalAmount || 0, // Handle null case
+  };
+}
 
 
 
