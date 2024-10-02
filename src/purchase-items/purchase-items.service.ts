@@ -38,6 +38,109 @@ export class PurchaseItemsService {
     }
   }
 
+  async findAllPurchaseItems(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item?: string, status?: string) {
+    const whereClause: any = {};
+
+    if (search) {
+      whereClause.OR = [
+        { 
+          purchase: {
+            series: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+         },
+        { purchase: { 
+          vendor: {
+            OR: [
+              {
+                fullName: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                email: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                phone: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+         } },
+      ];
+    }
+
+    if (startDate && endDate) {
+      whereClause.purchase = {
+        ...whereClause.purchase,
+        orderDate: {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+        },
+      };
+    }
+
+    if (item) {
+      whereClause.item = {
+        name: {
+          contains: item,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    if (status) {
+      whereClause.status = status;
+    }
+
+    const [purchaseItems, total, totalAmountSum] = await this.prisma.$transaction([
+      this.prisma.purchaseItems.findMany({
+        skip: +skip,
+      take: +take,
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc',
+      },
+        include: {
+          purchase: {
+            include: {
+              vendor: true,
+            },
+          },
+          uoms: true,
+          item: true,
+          purchaseItemNotes: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      }),
+      this.prisma.purchaseItems.count({ where: whereClause }),
+      this.prisma.purchaseItems.aggregate({
+        where: whereClause,
+        _sum: {
+          unitPrice: true,
+        },
+      }),
+    ]);
+    
+
+    return {
+      purchaseItems,
+      total,
+      totalAmountSum: totalAmountSum._sum.unitPrice || 0,
+    };
+  }
+
   async findAll(purchaseId: string) {
     const purchaseItems = await this.prisma.purchaseItems.findMany({
       where: { purchaseId },
