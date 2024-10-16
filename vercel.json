@@ -1,22 +1,15 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "dist/main.js",
-        "use": "@vercel/node"
-      }
-    ],
-    "build": {
-    "commands": [
-      "npx prisma generate",
-      "npm run build"
-    ]
-  },
-    "routes": [
-      {
-        "src": "/api/v1/(.*)",
-        "dest": "/dist/main.js"
-      }
-    ]
-  }
-  
+  "version": 2,
+  "builds": [
+    {
+      "src": "dist/main.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/v1/(.*)",
+      "dest": "/dist/main.js"
+    }
+  ]
+}
