@@ -1,0 +1,13 @@
+# Database Configuration
+# Replace username, password, localhost, and ian_backend with your actual PostgreSQL credentials
+DATABASE_URL="postgresql://username:password@localhost:5432/ian_backend?schema=public"
+POSTGRES_PRISMA_URL="postgresql://username:password@localhost:5432/ian_backend?schema=public"
+POSTGRES_URL_NON_POOLING="postgresql://username:password@localhost:5432/ian_backend?schema=public"
+
+# Application Configuration
+PORT=8080
+NODE_ENV=development
+
+# JWT Configuration (you may need to add these)
+JWT_SECRET=your-super-secret-jwt-key-here
+JWT_RT_SECRET=your-refresh-token-secret-here 

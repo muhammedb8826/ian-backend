@@ -80,16 +80,7 @@ export class UsersService {
     const user = await this.prisma.users.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    if (updateUserDto.password && updateUserDto.password !== updateUserDto.confirm_password) {
-      throw new ForbiddenException('Passwords do not match');
-    }
-
     const updateData: Partial<UpdateUserDto> = { ...updateUserDto };
-    if (updateUserDto.password) {
-      const hashedPassword = await this.hashPassword(updateUserDto.password);
-      updateData.password = hashedPassword;
-      updateData.confirm_password = hashedPassword;
-    }
 
     return this.prisma.users.update({
       where: { id },
