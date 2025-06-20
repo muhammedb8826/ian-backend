@@ -1,15 +1,19 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { Role} from '@prisma/client';
+import { User } from 'src/entities/user.entity';
+import { Role } from 'src/enums/role.enum';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
   constructor(
-    private prisma: PrismaService
+    @InjectRepository(User)
+    private userRepository: Repository<User>
   ) { }
+
   async create(createUserDto: CreateUserDto) {
     if (createUserDto.password !== createUserDto.confirm_password) {
       throw new ForbiddenException('Passwords do not match');
@@ -20,28 +24,32 @@ export class UsersService {
     const hashedPassword = await this.hashPassword(createUserDto.password);
     const isActive = Boolean(createUserDto.is_active);
 
-    return this.prisma.users.create({
-      data: {
-        ...createUserDto,
-        password: hashedPassword,
-        confirm_password: hashedPassword,
-        is_active: isActive,
-        profile: createUserDto.profile ? `/uploads/profile/${createUserDto.profile}` : null,
-      },
+    const user = this.userRepository.create({
+      email: createUserDto.email,
+      password: hashedPassword,
+      confirm_password: hashedPassword,
+      is_active: isActive,
+      profile: createUserDto.profile ? `/uploads/profile/${createUserDto.profile}` : null,
+      first_name: createUserDto.first_name,
+      last_name: createUserDto.last_name,
+      middle_name: createUserDto.middle_name,
+      gender: createUserDto.gender,
+      phone: createUserDto.phone,
+      address: createUserDto.address,
+      roles: createUserDto.roles as Role,
     });
+
+    return this.userRepository.save(user);
   }
 
   async findAll(skip: number, take: number) {
-    const [users, total] = await this.prisma.$transaction([
-      this.prisma.users.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      this.prisma.users.count()
-    ]);
+    const [users, total] = await this.userRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      order: {
+        createdAt: 'DESC'
+      }
+    });
     return {
       users,
       total
@@ -49,7 +57,7 @@ export class UsersService {
   }
 
   async findAllUsers() {
-    const users = await this.prisma.users.findMany();
+    const users = await this.userRepository.find();
     return users.map(user => ({
       ...user,
       profile: user.profile ? `/uploads/profile/${user.profile}` : null,
@@ -57,7 +65,7 @@ export class UsersService {
   }
 
   async getUserByRole(role: Role) {
-    const users = await this.prisma.users.findMany({
+    const users = await this.userRepository.find({
       where: { roles: role },
     });
     return users.map(user => ({
@@ -66,9 +74,8 @@ export class UsersService {
     }));
   }
 
-
   async findOne(id: string) {
-    const user = await this.prisma.users.findUnique({ where: { id } });
+    const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
     return {
       ...user,
@@ -77,36 +84,36 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
-    const user = await this.prisma.users.findUnique({ where: { id } });
+    const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    const updateData: Partial<UpdateUserDto> = { ...updateUserDto };
+    const updateData: any = { ...updateUserDto };
+    if (updateUserDto.is_active !== undefined) {
+      updateData.is_active = Boolean(updateUserDto.is_active);
+    }
+    if (updateUserDto.profile) {
+      updateData.profile = `/uploads/profile/${updateUserDto.profile}`;
+    }
 
-    return this.prisma.users.update({
-      where: { id },
-      data: {
-        ...updateData,
-        is_active: Boolean(updateUserDto.is_active),
-        profile: updateUserDto.profile ? `/uploads/profile/${updateUserDto.profile}` : user.profile,
-      },
-    });
+    await this.userRepository.update(id, updateData);
+
+    return this.userRepository.findOne({ where: { id } });
   }
 
   async remove(id: string) {
-    const user = await this.prisma.users.findUnique({ where: { id } });
+    const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
-    return this.prisma.users.delete({ where: { id } });
+    return this.userRepository.remove(user);
   }
-
 
   async hashPassword(password: string) {
     return await bcrypt.hash(password, 10);
   }
 
   private async checkForExistingUser(email: string, phone: string) {
-    const [existingEmailUser, existingPhoneUser] = await this.prisma.$transaction([
-      this.prisma.users.findUnique({ where: { email } }),
-      this.prisma.users.findUnique({ where: { phone } }),
+    const [existingEmailUser, existingPhoneUser] = await Promise.all([
+      this.userRepository.findOne({ where: { email } }),
+      this.userRepository.findOne({ where: { phone } }),
     ]);
 
     if (existingEmailUser) {

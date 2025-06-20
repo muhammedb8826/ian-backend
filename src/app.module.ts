@@ -1,19 +1,17 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from './auth/auth.module';
-import { PrismaModule } from './prisma/prisma.module';
 import { APP_GUARD } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import * as entities from './entities';
+
+// Guards
 import { AtGuard } from './common';
+
+// Modules
+import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { FileController } from './file/file.controller';
 import { FileModule } from './file/file.module';
 import { MachinesModule } from './machines/machines.module';
-import { UserMachineController } from './user-machine/user-machine.controller';
-import { UserMachineService } from './user-machine/user-machine.service';
-import { UsersController } from './users/users.controller';
-import { MachinesController } from './machines/machines.controller';
-import { UsersService } from './users/users.service';
-import { PrismaService } from './prisma/prisma.service';
-import { MachinesService } from './machines/machines.service';
 import { ServicesModule } from './services/services.module';
 import { ItemsModule } from './items/items.module';
 import { UnitCategoryModule } from './unit-category/unit-category.module';
@@ -37,18 +35,84 @@ import { CommissionTransactionsModule } from './commission-transactions/commissi
 import { PricingModule } from './pricing/pricing.module';
 import { OrderItemNotesModule } from './order-item-notes/order-item-notes.module';
 import { DiscountsModule } from './discounts/discounts.module';
+
+// Services & Controllers
+import { UserMachineService } from './user-machine/user-machine.service';
+import { UsersService } from './users/users.service';
+import { MachinesService } from './machines/machines.service';
+import { FileController } from './file/file.controller';
+import { UserMachineController } from './user-machine/user-machine.controller';
+import { UsersController } from './users/users.controller';
+import { MachinesController } from './machines/machines.controller';
+
+// Config
+import { createDatabaseConfig } from './config/database.config';
+import configuration from './config/configuration';
+
+
 @Module({
-  imports: [AuthModule, PrismaModule, UsersModule, FileModule, MachinesModule, ServicesModule, ItemsModule, UnitCategoryModule, UomModule, VendorsModule, PurchasesModule, PurchaseItemsModule, PurchaseItemNotesModule, SalesModule, SaleItemsModule, SaleItemNotesModule, OperatorStockModule, OrdersModule, OrderItemsModule, CustomersModule, SalesPartnersModule, PaymentTermsModule, PaymentTransactionsModule, CommissionsModule, CommissionTransactionsModule, PricingModule, OrderItemNotesModule, DiscountsModule],
+  imports: [
+    // Configuration (loaded first)
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      envFilePath: ['.env.local', '.env'],
+    }),
+
+    // Database (loaded second)
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: createDatabaseConfig,
+      inject: [ConfigService],
+    }),
+    TypeOrmModule.forFeature(Object.values(entities)),
+
+    // Feature Modules (alphabetical order)
+    AuthModule,
+    CustomersModule,
+    CommissionsModule,
+    CommissionTransactionsModule,
+    DiscountsModule,
+    FileModule,
+    ItemsModule,
+    MachinesModule,
+    OperatorStockModule,
+    OrdersModule,
+    OrderItemsModule,
+    OrderItemNotesModule,
+    PricingModule,
+    PurchaseItemsModule,
+    PurchaseItemNotesModule,
+    PurchasesModule,
+    SalesModule,
+    SaleItemsModule,
+    SaleItemNotesModule,
+    SalesPartnersModule,
+    ServicesModule,
+    UnitCategoryModule,
+    UomModule,
+    UsersModule,
+    VendorsModule,
+    PaymentTermsModule,
+    PaymentTransactionsModule,
+  ],
   providers: [
+    // Global Guards
     {
       provide: APP_GUARD,
-      useClass: AtGuard
+      useClass: AtGuard,
     },
+    
+    // Shared Services
     UserMachineService,
     UsersService,
-    PrismaService,
-    MachinesService
+    MachinesService,
   ],
-  controllers: [FileController, UserMachineController, UsersController, MachinesController]
+  controllers: [
+    FileController,
+    UserMachineController,
+    UsersController,
+    MachinesController,
+  ],
 })
 export class AppModule {}

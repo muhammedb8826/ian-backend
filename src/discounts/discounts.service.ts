@@ -1,86 +1,91 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { UpdateDiscountDto } from './dto/update-discount.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Discount } from 'src/entities/discount.entity';
+import { Item } from 'src/entities/item.entity';
 
 @Injectable()
 export class DiscountsService {
-  constructor(private prisma: PrismaService) { }
- async create(createDiscountDto: CreateDiscountDto) {
+  constructor(
+    @InjectRepository(Discount)
+    private discountRepository: Repository<Discount>,
+    @InjectRepository(Item)
+    private itemRepository: Repository<Item>
+  ) {}
+
+  async create(createDiscountDto: CreateDiscountDto) {
     const { itemId, level } = createDiscountDto;
 
     // Check if the item exists
-  const item = await this.prisma.items.findUnique({
-    where: { id: itemId },
-  });
+    const item = await this.itemRepository.findOne({
+      where: { id: itemId },
+    });
 
-  if (!item) {
-    throw new ConflictException('Item not found');
-  }
+    if (!item) {
+      throw new ConflictException('Item not found');
+    }
 
-    const existing =await this.prisma.discounts.findUnique({
-      where: { itemId_level: { itemId, level } }
+    const existing = await this.discountRepository.findOne({
+      where: { itemId, level }
     });
 
     if (existing) {
       throw new ConflictException('Discount already exists');
     }
 
-    return this.prisma.discounts.create({
-      data: createDiscountDto
-    });
+    const discount = this.discountRepository.create(createDiscountDto);
+    return await this.discountRepository.save(discount);
   }
 
   async findAll(skip: number, take: number) {
-    const [discounts, total] =await this.prisma.$transaction([
-      this.prisma.discounts.findMany({
-        skip: +skip,
-        take: +take,
-        orderBy: { createdAt: 'desc' },
-        include: { items: true }
-      }),
-      this.prisma.discounts.count()
-    ]);
+    const [discounts, total] = await this.discountRepository.findAndCount({
+      skip: +skip,
+      take: +take,
+      order: { createdAt: 'DESC' },
+      relations: { item: true }
+    });
     return { discounts, total };
   }
 
   async findAllDiscounts() {
-    return await this.prisma.discounts.findMany({
-      include: { items: true }
+    return await this.discountRepository.find({
+      relations: { item: true }
     });
   }
 
- async findOne(id: string) {
-    const discount = await this.prisma.discounts.findUnique({
+  async findOne(id: string) {
+    const discount = await this.discountRepository.findOne({
       where: { id },
-      include: { items: true }
+      relations: { item: true }
     });
 
     if (!discount) {
-      throw new ConflictException('Discount not found');
+      throw new NotFoundException('Discount not found');
     }
 
     return discount;
   }
 
- async update(id: string, updateDiscountDto: UpdateDiscountDto) {
-    const existing = await this.prisma.discounts.findUnique({
+  async update(id: string, updateDiscountDto: UpdateDiscountDto) {
+    const existing = await this.discountRepository.findOne({
       where: { id }
     });
 
     if (!existing) {
-      throw new ConflictException('Discount not found');
+      throw new NotFoundException('Discount not found');
     }
 
-    return this.prisma.discounts.update({
-      where: { id },
-      data: updateDiscountDto
-    });
+    await this.discountRepository.update(id, updateDiscountDto);
+    return this.discountRepository.findOne({ where: { id } });
   }
 
- async remove(id: string) {
-    return await this.prisma.discounts.delete({
-      where: { id }
-    });
+  async remove(id: string) {
+    const discount = await this.discountRepository.findOne({ where: { id } });
+    if (!discount) {
+      throw new NotFoundException('Discount not found');
+    }
+    return await this.discountRepository.remove(discount);
   }
 }

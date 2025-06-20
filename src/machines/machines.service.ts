@@ -1,75 +1,81 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { machines } from '@prisma/client';
+import { Machine } from '../entities/machine.entity';
 
 @Injectable()
 export class MachinesService {
-  constructor(private prisma: PrismaService){}
-  async create(createMachineDto: CreateMachineDto): Promise<machines> {
-    const booleanValue = Boolean(createMachineDto.status)
+  constructor(
+    @InjectRepository(Machine)
+    private machineRepository: Repository<Machine>
+  ) {}
 
-    const existingByName = await this.prisma.machines.findFirst({
+  async create(createMachineDto: CreateMachineDto): Promise<Machine> {
+    const booleanValue = Boolean(createMachineDto.status);
+
+    const existingByName = await this.machineRepository.findOne({
       where: {
-        name: {
-          equals: createMachineDto.name,
-          mode: 'insensitive', // This makes the comparison case-insensitive
-        },
+        name: ILike(createMachineDto.name), // Case-insensitive search
       },
-      
     });
   
     if (existingByName) {
       throw new ConflictException('Machine already exists');
     }
 
-    return await this.prisma.machines.create({
-      data: {
-        name: createMachineDto.name,
-        description: createMachineDto.description,
-        status: booleanValue
-      }
-    })
+    const machine = this.machineRepository.create({
+      name: createMachineDto.name,
+      description: createMachineDto.description,
+      status: booleanValue
+    });
+
+    return await this.machineRepository.save(machine);
   }
 
   async findAll(skip: number, take: number) {
-    const [machines, total] = await this.prisma.$transaction([
-      this.prisma.machines.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      this.prisma.machines.count()
-    ])
+    const [machines, total] = await this.machineRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      order: {
+        createdAt: 'DESC'
+      }
+    });
+    
     return {
       machines,
       total
-    }
+    };
   }
 
   async findAllMachines() {
-    return this.prisma.machines.findMany()
+    return this.machineRepository.find();
   }
 
   async findOne(id: string) {
-    return this.prisma.machines.findUnique({
-      where: {id}
-    });
+    const machine = await this.machineRepository.findOne({ where: { id } });
+    if (!machine) {
+      throw new NotFoundException(`Machine with ID ${id} not found`);
+    }
+    return machine;
   }
 
   async update(id: string, updateMachineDto: UpdateMachineDto) {
-    return this.prisma.machines.update({
-      where: {id},
-      data: updateMachineDto
-    })
+    const machine = await this.machineRepository.findOne({ where: { id } });
+    if (!machine) {
+      throw new NotFoundException(`Machine with ID ${id} not found`);
+    }
+
+    await this.machineRepository.update(id, updateMachineDto);
+    return this.machineRepository.findOne({ where: { id } });
   }
 
   async remove(id: string) {
-    return this.prisma.machines.delete({
-      where: {id},
-    });
+    const machine = await this.machineRepository.findOne({ where: { id } });
+    if (!machine) {
+      throw new NotFoundException(`Machine with ID ${id} not found`);
+    }
+    return this.machineRepository.remove(machine);
   }
 }

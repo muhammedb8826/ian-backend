@@ -1,52 +1,77 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateOrderItemNoteDto } from './dto/create-order-item-note.dto';
 import { UpdateOrderItemNoteDto } from './dto/update-order-item-note.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { OrderItemNotes } from 'src/entities/order-item-notes.entity';
+
 
 @Injectable()
 export class OrderItemNotesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(OrderItemNotes)
+    private readonly orderItemNoteRepository: Repository<OrderItemNotes>,
+  ) {}
+
   async create(orderItemId: string, noteDto: CreateOrderItemNoteDto) {
-    return this.prisma.orderItemNotes.create({
-      data: {
-        orderItemId,
-        text: noteDto.text,
-        hour: new Date(), // You can modify this logic as needed
-        date: new Date(),
-        userId: noteDto.userId, // Pass the current user id
-      },
+    const orderItemNote = this.orderItemNoteRepository.create({
+      orderItemId,
+      text: noteDto.text,
+      hour: new Date(), // You can modify this logic as needed
+      date: new Date(),
+      userId: noteDto.userId, // Pass the current user id
     });
+
+    return await this.orderItemNoteRepository.save(orderItemNote);
   }
 
   async findAllByOrderItem(orderItemId: string) {
-    return this.prisma.orderItemNotes.findMany({
+    return this.orderItemNoteRepository.find({
       where: { orderItemId },
-      include: {
-        user: true,
-      },
+      relations: ['user'],
     });
   }
 
-
-   async findOne(id: string) {
-    return this.prisma.orderItemNotes.findUnique({
+  async findOne(id: string) {
+    const orderItemNote = await this.orderItemNoteRepository.findOne({
       where: { id },
-      include : {
-        user: true
-      }
+      relations: ['user']
     });
+
+    if (!orderItemNote) {
+      throw new NotFoundException(`Order Item Note with ID ${id} not found`);
+    }
+
+    return orderItemNote;
   }
 
   async update(id: string, updateOrderItemNoteDto: UpdateOrderItemNoteDto) {
-    return this.prisma.orderItemNotes.update({
+    const orderItemNote = await this.orderItemNoteRepository.findOne({
+      where: { id }
+    });
+
+    if (!orderItemNote) {
+      throw new NotFoundException(`Order Item Note with ID ${id} not found`);
+    }
+
+    await this.orderItemNoteRepository.update(id, updateOrderItemNoteDto);
+    
+    return await this.orderItemNoteRepository.findOne({
       where: { id },
-      data: updateOrderItemNoteDto,
+      relations: ['user']
     });
   }
 
   async remove(id: string) {
-    return this.prisma.orderItemNotes.delete({
-      where: { id },
+    const orderItemNote = await this.orderItemNoteRepository.findOne({
+      where: { id }
     });
+
+    if (!orderItemNote) {
+      throw new NotFoundException(`Order Item Note with ID ${id} not found`);
+    }
+
+    await this.orderItemNoteRepository.remove(orderItemNote);
+    return { message: `Order Item Note with ID ${id} removed successfully` };
   }
 }

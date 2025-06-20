@@ -1,55 +1,68 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreatePurchaseItemNoteDto } from './dto/create-purchase-item-note.dto';
 import { UpdatePurchaseItemNoteDto } from './dto/update-purchase-item-note.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PurchaseItemNote } from 'src/entities/purchase-item-note.entity';
 
 @Injectable()
 export class PurchaseItemNotesService {
-  constructor(private readonly prisma: PrismaService) {}
-  async create(purchaseItemId: string, noteDto: CreatePurchaseItemNoteDto) {
+  constructor(
+    @InjectRepository(PurchaseItemNote)
+    private purchaseItemNoteRepository: Repository<PurchaseItemNote>
+  ) {}
 
+  async create(purchaseItemId: string, noteDto: CreatePurchaseItemNoteDto) {
     if (!noteDto || !noteDto.text || !noteDto.userId) {
       throw new Error('Invalid note data');
     }
 
-    return this.prisma.purchaseItemNote.create({
-      data: {
-        purchaseItemId,
-        text: noteDto.text,
-        hour: new Date(), // You can modify this logic as needed
-        date: new Date(),
-        userId: noteDto.userId, // Pass the current user id
-      },
+    const note = this.purchaseItemNoteRepository.create({
+      purchaseItemId,
+      text: noteDto.text,
+      hour: new Date(), // You can modify this logic as needed
+      date: new Date(),
+      userId: noteDto.userId, // Pass the current user id
     });
+
+    return await this.purchaseItemNoteRepository.save(note);
   }
 
- async findAll(purchaseItemId: string) {
-    return this.prisma.purchaseItemNote.findMany({
+  async findAll(purchaseItemId: string) {
+    return this.purchaseItemNoteRepository.find({
       where: { purchaseItemId },
-      include: {
+      relations: {
         user: true,
       },
     });
   }
 
   async findOne(id: string) {
-    return this.prisma.purchaseItemNote.findUnique({
+    const note = await this.purchaseItemNoteRepository.findOne({
       where: { id },
-      include: {
+      relations: {
         user: true,
       },
     });
+
+    if (!note) {
+      throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
+    }
+
+    return note;
   }
 
   async update(id: string, updatePurchaseItemNoteDto: UpdatePurchaseItemNoteDto) {
+    const note = await this.purchaseItemNoteRepository.findOne({ where: { id } });
+    if (!note) {
+      throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
+    }
+
     try {
-      const updatedPurchaseItemNote = await this.prisma.purchaseItemNote.update({
-        where: { id },
-        data: updatePurchaseItemNoteDto,
-      });
-      return updatedPurchaseItemNote;
+      await this.purchaseItemNoteRepository.update(id, updatePurchaseItemNoteDto);
+      return this.purchaseItemNoteRepository.findOne({ where: { id } });
     } catch (error) {
-      if (error.code === 'P2002') { // Unique constraint error code
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
       throw new Error('An unexpected error occurred.');
@@ -57,15 +70,14 @@ export class PurchaseItemNotesService {
   }
 
   async remove(id: string) {
+    const note = await this.purchaseItemNoteRepository.findOne({ where: { id } });
+    if (!note) {
+      throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
+    }
+
     try {
-      const deletedPurchaseItemNote = await this.prisma.purchaseItemNote.delete({
-        where: { id },
-      });
-      return deletedPurchaseItemNote;
+      return await this.purchaseItemNoteRepository.remove(note);
     } catch (error) {
-      if (error.code === 'P2025') { // Record not found error code
-        throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
-      }
       throw new Error('An unexpected error occurred.');
     }
   }

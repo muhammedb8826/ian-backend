@@ -1,40 +1,48 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { OrderItems } from 'src/entities/order-item.entity';
+import { Order } from 'src/entities/order.entity';
 
 @Injectable()
 export class OrderItemsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(OrderItems)
+    private readonly orderItemRepository: Repository<OrderItems>,
+    @InjectRepository(Order)
+    private readonly orderRepository: Repository<Order>,
+  ) {}
+
   async create(createOrderItemDto: CreateOrderItemDto) {
     try {
       // Create the order item
-      const createdOrderItem = await this.prisma.orderItems.create({
-        data: {
-          orderId: createOrderItemDto.orderId,
-          itemId: createOrderItemDto.itemId,
-          quantity: parseFloat(createOrderItemDto.quantity.toString()),
-          serviceId: createOrderItemDto.serviceId,
-          width: parseFloat(createOrderItemDto.width.toString()),
-          height: parseFloat(createOrderItemDto.height.toString()),
-          discount: createOrderItemDto.discount,
-          level: createOrderItemDto.level,
-          totalAmount: parseFloat(createOrderItemDto.totalAmount.toString()),
-          adminApproval: createOrderItemDto.adminApproval,
-          uomId: createOrderItemDto.uomId,
-          unitPrice: parseFloat(createOrderItemDto.unitPrice.toString()),
-          description: createOrderItemDto.description,
-          isDiscounted: createOrderItemDto.isDiscounted,
-          status: createOrderItemDto.status,
-          pricingId: createOrderItemDto.pricingId,
-          unit: parseFloat(createOrderItemDto.unit.toString()),
-          baseUomId: createOrderItemDto.baseUomId,
-        },
+      const orderItem = this.orderItemRepository.create({
+        orderId: createOrderItemDto.orderId,
+        itemId: createOrderItemDto.itemId,
+        quantity: parseFloat(createOrderItemDto.quantity.toString()),
+        serviceId: createOrderItemDto.serviceId,
+        width: parseFloat(createOrderItemDto.width.toString()),
+        height: parseFloat(createOrderItemDto.height.toString()),
+        discount: createOrderItemDto.discount,
+        level: createOrderItemDto.level,
+        totalAmount: parseFloat(createOrderItemDto.totalAmount.toString()),
+        adminApproval: createOrderItemDto.adminApproval,
+        uomId: createOrderItemDto.uomId,
+        unitPrice: parseFloat(createOrderItemDto.unitPrice.toString()),
+        description: createOrderItemDto.description,
+        isDiscounted: createOrderItemDto.isDiscounted,
+        status: createOrderItemDto.status,
+        pricingId: createOrderItemDto.pricingId,
+        unit: parseFloat(createOrderItemDto.unit.toString()),
+        baseUomId: createOrderItemDto.baseUomId,
       });
 
-      // After updating the order item, fetch all related order items
-      const orderItems = await this.prisma.orderItems.findMany({
+      const createdOrderItem = await this.orderItemRepository.save(orderItem);
+
+      // After creating the order item, fetch all related order items
+      const orderItems = await this.orderItemRepository.find({
         where: { orderId: createOrderItemDto.orderId },
       });
 
@@ -55,282 +63,207 @@ export class OrderItemsService {
       } else if (allDelivered) {
         newOrderStatus = 'Delivered';
       }
+
       // Update the order with the new status
-      await this.prisma.orders.update({
-        where: { id: createOrderItemDto.orderId },
-        data: { status: newOrderStatus },
-      });
+      await this.orderRepository.update(createOrderItemDto.orderId, { status: newOrderStatus });
+
       return createdOrderItem;
     } catch (error) {
       console.error('Error creating order item:', error);
 
-      if (error.code === 'P2002') {
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
-
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error('Prisma error details:', error.meta);
       }
 
       throw new Error(`An unexpected error occurred: ${error.message}`);
     }
   }
 
-
   async findAll(orderId: string) {
-    const orderItems = await this.prisma.orderItems.findMany({
+    const orderItems = await this.orderItemRepository.find({
       where: { orderId },
-      include: {
-        order: true,
-        uom: true,
-        pricing: true,
-        item: true,
-        service: true,
-        orderItemNotes: {
-          include: {
-            user: true,
-          }
-        }
-      }
+      relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
     });
 
     return orderItems;
   }
 
   async findAllOrderItems(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item?: string, status?: string) {
-    const whereClause: any = {};
-
+    const queryBuilder = this.orderItemRepository
+      .createQueryBuilder('orderItem')
+      .leftJoinAndSelect('orderItem.order', 'order')
+      .leftJoinAndSelect('order.customer', 'customer')
+      .leftJoinAndSelect('orderItem.uom', 'uom')
+      .leftJoinAndSelect('orderItem.pricing', 'pricing')
+      .leftJoinAndSelect('orderItem.item', 'item')
+      .leftJoinAndSelect('orderItem.service', 'service')
+      .leftJoinAndSelect('orderItem.orderItemNotes', 'orderItemNotes')
+      .leftJoinAndSelect('orderItemNotes.user', 'user')
+      .orderBy('orderItem.createdAt', 'DESC')
+      .skip(Number(skip))
+      .take(Number(take));
 
     // Search filter for series, fullName, or phone
     if (search) {
-      whereClause.OR = [
-        {
-          order: {
-            series: {
-              contains: search,
-              mode: 'insensitive', // Case insensitive search
-            },
-          },
-        },
-        {
-          order: {
-            customer: {
-              OR: [
-                {
-                  fullName: {
-                    contains: search,
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  phone: {
-                    contains: search,
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  email: {
-                    contains: search,
-                    mode: 'insensitive',
-                  },
-                },
-              ],
-            },
-          },
-        },
-      ];
+      queryBuilder.where(
+        'order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search OR customer.email LIKE :search',
+        { search: `%${search}%` }
+      );
     }
 
     // Filter by start and end dates
     if (startDate && endDate) {
-      whereClause.order = {
-        ...whereClause.order,
-        orderDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      };
+      queryBuilder.andWhere('order.orderDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
     }
 
     if (item) {
-      whereClause.item = {
-        name: {
-          contains: item,
-          mode: 'insensitive',
-        },
-      };
+      queryBuilder.andWhere('item.name LIKE :item', { item: `%${item}%` });
     }
 
     if (status) {
-      whereClause.status = status;
+      queryBuilder.andWhere('orderItem.status = :status', { status });
     }
 
-    // Prisma transaction for querying order items, total count, and sum of totalAmount
-  const [orderItems, total, totalAmountSum] = await this.prisma.$transaction([
-    this.prisma.orderItems.findMany({
-      skip: +skip,
-      take: +take,
-      where: whereClause,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        order: {
-          include: {
-            customer: true,
-          },
-        },
-        uom: true,
-        pricing: true,
-        item: true,
-        service: true,
-        orderItemNotes: {
-          include: {
-            user: true,
-          }
-        }
-      }
-    }),
-    this.prisma.orderItems.count({
-      where: whereClause,
-    }),
-    this.prisma.orderItems.aggregate({
-      where: whereClause,
-      _sum: {
-        totalAmount: true, // Summing the totalAmount field
-      },
-    }),
-  ]);
+    const [orderItems, total] = await queryBuilder.getManyAndCount();
 
-  return {
-    orderItems,
-    total,
-    totalAmountSum: totalAmountSum._sum.totalAmount || 0, // Handle null case
-  };
-}
+    // Calculate total amount sum
+    const totalAmountSum = orderItems.reduce((sum, orderItem) => sum + orderItem.totalAmount, 0);
 
+    return {
+      orderItems,
+      total,
+      totalAmountSum,
+    };
+  }
 
+  async findOne(id: string) {
+    return this.orderItemRepository.findOne({
+      where: { id },
+      relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
+    });
+  }
 
   async update(id: string, updateOrderItemDto: UpdateOrderItemDto) {
-
-    // if status is 'Printed' or 'Void', adjust the operatorStock first
-    if (updateOrderItemDto.status === 'Printed' || updateOrderItemDto.status === 'Void') {
-      const orderItem = await this.prisma.orderItems.findFirst({
-        where: { id },
-        include: { item: true },
-      });
-
-      if (orderItem) {
-        const item = await this.prisma.items.findFirst({
-          where: { id: orderItem.itemId },
-        });
-
-        if (item) {
-          const operatorStock = await this.prisma.operatorStock.findFirst({
-            where: { itemId: item.id },
-          });
-
-          // Throw an error if the operatorStock entry is not found
-          if (!operatorStock) {
-            throw new ConflictException(`Please make a request for item ${item.name} before trying to print`);
-          }
-
-          // Check if the stock quantity is sufficient
-          if (operatorStock.quantity < orderItem.unit) {
-            throw new ConflictException('Insufficient stock for this item.');
-          }
-
-          if (operatorStock) {
-            await this.prisma.operatorStock.update({
-              where: { id: operatorStock.id },
-              data: { quantity: operatorStock.quantity - orderItem.unit },
-            });
-          }
-        }
-      }
-    }
-
-    // Check if status is 'Approved' and handle payment verification
-    if (updateOrderItemDto.status === 'Approved') {
-      const orderPayment = await this.prisma.paymentTerms.findFirst({
-        where: { orderId: updateOrderItemDto.orderId },
-        include: { order: true },
-      });
-
-      if (orderPayment) {
-        const paymentTerm = await this.prisma.paymentTerms.findFirst({
-          where: { id: orderPayment.id },
-        });
-
-        if (paymentTerm && paymentTerm.forcePayment && paymentTerm.remainingAmount > 0) {
-          throw new ConflictException('Payment is not completed');
-        }
-      }
-    }
-
-
-    const updatedOrderItem = await this.prisma.orderItems.update({
-      where: { id },
-      data: {
-        orderId: updateOrderItemDto.orderId,
+    try {
+      await this.orderItemRepository.update(id, {
         itemId: updateOrderItemDto.itemId,
-        quantity: updateOrderItemDto.quantity,
+        quantity: updateOrderItemDto.quantity ? parseFloat(updateOrderItemDto.quantity.toString()) : undefined,
         serviceId: updateOrderItemDto.serviceId,
-        width: updateOrderItemDto.width !== null && updateOrderItemDto.width !== undefined
-          ? parseFloat(updateOrderItemDto.width.toString())
-          : null,
-        height: updateOrderItemDto.height !== null && updateOrderItemDto.height !== undefined
-          ? parseFloat(updateOrderItemDto.height.toString())
-          : null,
-        discount: parseFloat(updateOrderItemDto.discount.toString()),
+        width: updateOrderItemDto.width ? parseFloat(updateOrderItemDto.width.toString()) : undefined,
+        height: updateOrderItemDto.height ? parseFloat(updateOrderItemDto.height.toString()) : undefined,
+        discount: updateOrderItemDto.discount,
         level: updateOrderItemDto.level,
-        totalAmount: parseFloat(updateOrderItemDto.totalAmount.toString()),
+        totalAmount: updateOrderItemDto.totalAmount ? parseFloat(updateOrderItemDto.totalAmount.toString()) : undefined,
         adminApproval: updateOrderItemDto.adminApproval,
         uomId: updateOrderItemDto.uomId,
-        unitPrice: parseFloat(updateOrderItemDto.unitPrice.toString()),
+        unitPrice: updateOrderItemDto.unitPrice ? parseFloat(updateOrderItemDto.unitPrice.toString()) : undefined,
         description: updateOrderItemDto.description,
         isDiscounted: updateOrderItemDto.isDiscounted,
         status: updateOrderItemDto.status,
         pricingId: updateOrderItemDto.pricingId,
-        unit: parseFloat(updateOrderItemDto.unit.toString()),
+        unit: updateOrderItemDto.unit ? parseFloat(updateOrderItemDto.unit.toString()) : undefined,
         baseUomId: updateOrderItemDto.baseUomId,
-      },
-    });
+      });
 
-    // After updating the order item, fetch all related order items
-    const orderItems = await this.prisma.orderItems.findMany({
-      where: { orderId: updateOrderItemDto.orderId },
-    });
+      // Get the updated order item to check order status
+      const updatedOrderItem = await this.orderItemRepository.findOne({
+        where: { id },
+        relations: ['order'],
+      });
 
-    // Check if all statuses are the same or partially complete
-    const allReceived = orderItems.every(item => item.status === 'Received');
-    const allPrinted = orderItems.every(item => item.status === 'Printed');
-    const allCompleted = orderItems.every(item => item.status === 'Completed');
-    const allDelivered = orderItems.every(item => item.status === 'Delivered');
+      if (updatedOrderItem) {
+        // Fetch all order items for this order
+        const orderItems = await this.orderItemRepository.find({
+          where: { orderId: updatedOrderItem.orderId },
+        });
 
-    let newOrderStatus = 'Processing'; // Default status
+        // Check if all statuses are the same
+        const allReceived = orderItems.every(item => item.status === 'Received');
+        const allPrinted = orderItems.every(item => item.status === 'Printed');
+        const allCompleted = orderItems.every(item => item.status === 'Completed');
+        const allDelivered = orderItems.every(item => item.status === 'Delivered');
 
-    if (allReceived) {
-      newOrderStatus = 'Pending';
-    } else if (allPrinted) {
-      newOrderStatus = 'Printed';
-    } else if (allCompleted) {
-      newOrderStatus = 'Completed';
-    } else if (allDelivered) {
-      newOrderStatus = 'Delivered';
+        let newOrderStatus = 'Processing';
+
+        if (allReceived) {
+          newOrderStatus = 'Pending';
+        } else if (allPrinted) {
+          newOrderStatus = 'Printed';
+        } else if (allCompleted) {
+          newOrderStatus = 'Completed';
+        } else if (allDelivered) {
+          newOrderStatus = 'Delivered';
+        }
+
+        // Update the order status
+        await this.orderRepository.update(updatedOrderItem.orderId, { status: newOrderStatus });
+      }
+
+      return await this.orderItemRepository.findOne({
+        where: { id },
+        relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
+      });
+    } catch (error) {
+      console.error('Error updating order item:', error);
+
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+
+      throw new Error(`An unexpected error occurred: ${error.message}`);
     }
-    // Update the order with the new status
-    await this.prisma.orders.update({
-      where: { id: updateOrderItemDto.orderId },
-      data: { status: newOrderStatus },
-    });
-
-    return updatedOrderItem;
   }
 
   async remove(id: string) {
-    return this.prisma.orderItems.delete({
-      where: { id }
-    });
+    try {
+      const orderItem = await this.orderItemRepository.findOne({
+        where: { id },
+        relations: ['order'],
+      });
+
+      if (!orderItem) {
+        throw new Error('Order item not found');
+      }
+
+      const orderId = orderItem.orderId;
+
+      // Delete the order item
+      await this.orderItemRepository.remove(orderItem);
+
+      // Fetch remaining order items for this order
+      const remainingOrderItems = await this.orderItemRepository.find({
+        where: { orderId },
+      });
+
+      // Update order status based on remaining items
+      if (remainingOrderItems.length > 0) {
+        const allReceived = remainingOrderItems.every(item => item.status === 'Received');
+        const allPrinted = remainingOrderItems.every(item => item.status === 'Printed');
+        const allCompleted = remainingOrderItems.every(item => item.status === 'Completed');
+        const allDelivered = remainingOrderItems.every(item => item.status === 'Delivered');
+
+        let newOrderStatus = 'Processing';
+
+        if (allReceived) {
+          newOrderStatus = 'Pending';
+        } else if (allPrinted) {
+          newOrderStatus = 'Printed';
+        } else if (allCompleted) {
+          newOrderStatus = 'Completed';
+        } else if (allDelivered) {
+          newOrderStatus = 'Delivered';
+        }
+
+        await this.orderRepository.update(orderId, { status: newOrderStatus });
+      }
+
+      return { message: 'Order item deleted successfully' };
+    } catch (error) {
+      console.error('Error removing order item:', error);
+      throw new Error('An unexpected error occurred.');
+    }
   }
 }

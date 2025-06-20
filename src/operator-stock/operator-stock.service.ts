@@ -1,61 +1,47 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateOperatorStockDto } from './dto/create-operator-stock.dto';
 import { UpdateOperatorStockDto } from './dto/update-operator-stock.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { OperatorStock } from 'src/entities/operator-stock.entity';
+
 
 @Injectable()
 export class OperatorStockService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(OperatorStock)
+    private readonly operatorStockRepository: Repository<OperatorStock>,
+  ) {}
 
   async create(createOperatorStockDto: CreateOperatorStockDto) {
     // Create a new operator stock record
-    const newOperatorStock = await this.prisma.operatorStock.create({
-      data: createOperatorStockDto,
-    });
-
-    return newOperatorStock;
+    const newOperatorStock = this.operatorStockRepository.create(createOperatorStockDto);
+    return await this.operatorStockRepository.save(newOperatorStock);
   }
 
-  
   async findAll(skip: number, take: number, search?: string) {
-    const [operatorStocks, total] = await this.prisma.$transaction([
-      this.prisma.operatorStock.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        where: search
-          ? {
-              // Assuming search can match with item name
-              item: {
-                name: { contains: search, mode: 'insensitive' },
-              },
-            }
-          : {},
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          item: true, 
-          uoms: true,
-        },
-      }),
-      this.prisma.operatorStock.count({
-        where: search
-          ? {
-              item: {
-                name: { contains: search, mode: 'insensitive' },
-              },
-            }
-          : {},
-      }),
-    ]);
-  
+    const queryBuilder = this.operatorStockRepository
+      .createQueryBuilder('operatorStock')
+      .leftJoinAndSelect('operatorStock.item', 'item')
+      .leftJoinAndSelect('operatorStock.uoms', 'uoms')
+      .orderBy('operatorStock.createdAt', 'DESC')
+      .skip(Number(skip))
+      .take(Number(take));
+
+    if (search) {
+      queryBuilder.where('item.name LIKE :search', { search: `%${search}%` });
+    }
+
+    const [operatorStocks, total] = await queryBuilder.getManyAndCount();
+
     return { operatorStocks, total };
   }
 
   async findOne(id: string) {
     // Retrieve a single operator stock record by ID
-    const operatorStock = await this.prisma.operatorStock.findUnique({
+    const operatorStock = await this.operatorStockRepository.findOne({
       where: { id },
+      relations: ['item', 'uoms'],
     });
 
     if (!operatorStock) {
@@ -67,7 +53,7 @@ export class OperatorStockService {
 
   async update(id: string, updateOperatorStockDto: UpdateOperatorStockDto) {
     // Check if the operator stock record exists
-    const operatorStock = await this.prisma.operatorStock.findUnique({
+    const operatorStock = await this.operatorStockRepository.findOne({
       where: { id },
     });
 
@@ -76,17 +62,17 @@ export class OperatorStockService {
     }
 
     // Update the operator stock record
-    const updatedOperatorStock = await this.prisma.operatorStock.update({
+    await this.operatorStockRepository.update(id, updateOperatorStockDto);
+    
+    return await this.operatorStockRepository.findOne({
       where: { id },
-      data: updateOperatorStockDto,
+      relations: ['item', 'uoms'],
     });
-
-    return updatedOperatorStock;
   }
 
   async remove(id: string) {
     // Check if the operator stock record exists
-    const operatorStock = await this.prisma.operatorStock.findUnique({
+    const operatorStock = await this.operatorStockRepository.findOne({
       where: { id },
     });
 
@@ -95,9 +81,7 @@ export class OperatorStockService {
     }
 
     // Delete the operator stock record
-    await this.prisma.operatorStock.delete({
-      where: { id },
-    });
+    await this.operatorStockRepository.remove(operatorStock);
 
     return { message: `Operator Stock with ID ${id} removed successfully` };
   }

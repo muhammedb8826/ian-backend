@@ -1,19 +1,26 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Order } from '../entities/order.entity';
+import { Pricing } from 'src/entities/pricing.entity';
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(Order)
+    private readonly orderRepository: Repository<Order>,
+    @InjectRepository(Pricing)
+    private readonly pricingRepository: Repository<Pricing>,
+  ) {}
+
   async create(createOrderDto: CreateOrderDto) {
     try {
       // Validate pricingId for each orderItem
       const orderItemsWithPricing = createOrderDto.orderItems.filter(item => item.pricingId);
       for (const item of orderItemsWithPricing) {
-        const pricingExists = await this.prisma.pricing.findUnique({
+        const pricingExists = await this.pricingRepository.findOne({
           where: { id: item.pricingId },
         });
         if (!pricingExists) {
@@ -21,531 +28,161 @@ export class OrdersService {
         }
       }
 
-      const order = await this.prisma.orders.create({
-        data: {
-          series: createOrderDto.series,
-          customer: {
-            connect: { id: createOrderDto.customerId }, // Ensure `customerId` is correctly referenced
-          },
-          status: createOrderDto.status,
-          orderDate: new Date(createOrderDto.orderDate),
-          deliveryDate: new Date(createOrderDto.deliveryDate),
-          orderSource: createOrderDto.orderSource,
-          totalAmount: parseFloat(createOrderDto.totalAmount.toString()),
-          tax: parseFloat(createOrderDto.tax.toString()),
-          grandTotal: parseFloat(createOrderDto.grandTotal.toString()),
-          totalQuantity: parseFloat(createOrderDto.totalQuantity.toString()),
-          internalNote: createOrderDto.internalNote,
-          fileNames: createOrderDto.fileNames,
-          adminApproval: createOrderDto.adminApproval,
-          paymentTerm: createOrderDto.paymentTerm ? {
-            create: {
-              totalAmount: parseFloat(createOrderDto.paymentTerm.totalAmount.toString()),
-              remainingAmount: parseFloat(createOrderDto.paymentTerm.remainingAmount.toString()),
-              status: this.getPaymentTermStatus(createOrderDto.paymentTerm.remainingAmount, createOrderDto.grandTotal),
-              forcePayment: createOrderDto.paymentTerm.forcePayment,
-              transactions: {
-                create: createOrderDto.paymentTerm.transactions?.map(transaction => ({
-                  date: new Date(transaction.date),
-                  paymentMethod: transaction.paymentMethod,
-                  reference: transaction.reference,
-                  amount: parseFloat(transaction.amount.toString()),
-                  status: transaction.status,
-                  description: transaction.description,
-                })) || [],
-              },
-            },
-          } : undefined,
-          commission: createOrderDto.commission ? {
-            create: {
-              salesPartner: { connect: { id: createOrderDto.commission.salesPartnerId } },
-              totalAmount: parseFloat(createOrderDto.commission.totalAmount.toString()),
-              paidAmount: parseFloat(createOrderDto.commission.paidAmount.toString()),
-              transactions: {
-                create: createOrderDto.commission.transactions?.map(transaction => ({
-                  date: new Date(transaction.date),
-                  amount: parseFloat(transaction.amount.toString()),
-                  percentage: parseFloat(transaction.percentage.toString()),
-                  paymentMethod: transaction.paymentMethod,
-                  reference: transaction.reference,
-                  status: transaction.status,
-                  description: transaction.description,
-                })) || [],
-              },
-            },
-          } : undefined,
-          salesPartner: createOrderDto.salesPartner ? {
-            connect: { id: createOrderDto.salesPartner.id },
-          } : undefined,
-
-          orderItems: {
-            create: createOrderDto.orderItems.map(item => ({
-              itemId: item.itemId,
-              serviceId: item.serviceId,
-              width: parseFloat(item.width.toString()) || null,
-              height: parseFloat(item.height.toString()) || null,
-              discount: parseFloat(item.discount.toString()),
-              level: parseFloat(item.level.toString()),
-              totalAmount: parseFloat(item.totalAmount.toString()),
-              adminApproval: item.adminApproval,
-              uomId: item.uomId,
-              quantity: parseFloat(item.quantity.toString()),
-              unitPrice: parseFloat(item.unitPrice.toString()),
-              description: item.description,
-              isDiscounted: item.isDiscounted,
-              status: item.status,
-              pricingId: item.pricingId,
-              unit: parseFloat(item.unit.toString()),
-              baseUomId: item.baseUomId,
-            })),
-          },
-        },
+      const order = this.orderRepository.create({
+        series: createOrderDto.series,
+        customerId: createOrderDto.customerId,
+        status: createOrderDto.status,
+        orderDate: new Date(createOrderDto.orderDate),
+        deliveryDate: new Date(createOrderDto.deliveryDate),
+        orderSource: createOrderDto.orderSource,
+        totalAmount: parseFloat(createOrderDto.totalAmount.toString()),
+        tax: parseFloat(createOrderDto.tax.toString()),
+        grandTotal: parseFloat(createOrderDto.grandTotal.toString()),
+        totalQuantity: parseFloat(createOrderDto.totalQuantity.toString()),
+        internalNote: createOrderDto.internalNote,
+        fileNames: createOrderDto.fileNames,
+        adminApproval: createOrderDto.adminApproval,
+        salesPartnersId: createOrderDto.salesPartner?.id,
       });
 
-      return order;
+      return await this.orderRepository.save(order);
     } catch (error) {
       console.error('Error creating order:', error);
 
-      // Check if it's a Prisma error
-      if (error.code === 'P2002') {
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
 
-      // Log the error details for better debugging
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error('Prisma error details:', error.meta);
-      }
-
-      // Throw a more informative error for better feedback
       throw new Error(`An unexpected error occurred: ${error.message}`);
     }
   }
 
-  async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item1?: string, item2?: string, item3?: string) {
-    const whereClause: any = {};
+    async findAll(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item1?: string, item2?: string, item3?: string, status?: string) {
+    const queryBuilder = this.orderRepository
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.customer', 'customer')
+      .leftJoinAndSelect('order.orderItems', 'orderItems')
+      .leftJoinAndSelect('order.paymentTerm', 'paymentTerm')
+      .leftJoinAndSelect('order.commission', 'commission')
+      .leftJoinAndSelect('order.salesPartner', 'salesPartner')
+      .orderBy('order.createdAt', 'DESC')
+      .skip(Number(skip))
+      .take(Number(take));
 
-    // Handle the search filter
     if (search) {
-      whereClause.OR = [
-        { id: { contains: search, mode: 'insensitive' } },
-        { series: { contains: search, mode: 'insensitive' } },
-        { customer: { fullName: { contains: search, mode: 'insensitive' } } },
-        { customer: { phone: { contains: search, mode: 'insensitive' } } },
-        { orderItems: { some: { description: { contains: search, mode: 'insensitive' } } } },
-        { paymentTerm: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
-        { commission: { transactions: { some: { reference: { contains: search, mode: 'insensitive' } } } } },
-        { salesPartner: { fullName: { contains: search, mode: 'insensitive' } } }
-      ];
+      queryBuilder.where(
+        'order.id LIKE :search OR order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search',
+        { search: `%${search}%` }
+      );
     }
 
-    // Handle the date range filter
     if (startDate && endDate) {
-      whereClause.orderDate = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
-      };
+      queryBuilder.andWhere('order.orderDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
     }
 
-
-    // Collect the provided item names into an array
-    const orderItemNames = [item1, item2, item3].filter(Boolean); // Filters out undefined or null values
-
-    // Handle order item names filter
-    if (orderItemNames.length > 0) {
-      whereClause.orderItems = {
-        some: {
-          item: {
-            OR: orderItemNames.map(name => ({
-              name: {
-                contains: name, // Case-insensitive search in lowercase
-                mode: 'insensitive',
-              }
-            }))
-          }
-        }
-      };
+    if (item1) {
+      queryBuilder.andWhere('orderItems.itemId = :item1', { item1 });
     }
 
-    // Fetch the orders and total count using the unified whereClause
-    const [orders, total, grandTotalSum] = await this.prisma.$transaction([
-      this.prisma.orders.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          customer: true,
-          orderItems: {
-            include: {
-              pricing: true,
-            },
-          },
-          paymentTerm: true,
-          commission: true,
-          salesPartner: true,
-        },
-        where: whereClause, // Use the unified whereClause
-      }),
-      this.prisma.orders.count({
-        where: whereClause, // Use the same whereClause for count
-      }),
-      this.prisma.orders.aggregate({
-        _sum: {
-          grandTotal: true,
-        },
-        where: whereClause, // Use the same whereClause for sum
-      }),
-    ]);
+    if (item2) {
+      queryBuilder.andWhere('orderItems.itemId = :item2', { item2 });
+    }
+
+    if (item3) {
+      queryBuilder.andWhere('orderItems.itemId = :item3', { item3 });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('order.status = :status', { status });
+    }
+
+    const [orders, total] = await queryBuilder.getManyAndCount();
+
+    // Calculate grand total sum
+    const grandTotalSum = orders.reduce((sum, order) => sum + order.grandTotal, 0);
 
     return {
       orders,
       total,
-      grandTotalSum: grandTotalSum._sum.grandTotal ?? 0, // Return the sum of grandTotal or 0 if no orders found
+      grandTotalSum,
     };
   }
 
-
   async findAllOrders() {
-    return this.prisma.orders.findMany({
-      include: {
-        customer: true,
-        orderItems: {
-          include: {
-            pricing: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
-        paymentTerm: {
-          include: {
-            transactions: true,
-          },
-        },
-        commission: {
-          include: {
-            transactions: true,
-            salesPartner: true,
-          },
-        },
-        salesPartner: true,
-      },
+    return this.orderRepository.find({
+      relations: ['customer', 'orderItems', 'paymentTerm', 'commission', 'salesPartner'],
     });
   }
 
   async findOne(id: string) {
-    return this.prisma.orders.findUnique({
+    return this.orderRepository.findOne({
       where: { id },
-      include: {
-        customer: true,
-        orderItems: {
-          include: {
-            pricing: true
-          }
-        },
-        paymentTerm: {
-          include: {
-            transactions: true,
-          },
-        },
-        commission: {
-          include: {
-            transactions: true,
-            salesPartner: true,
-          },
-        },
-        salesPartner: true,
-      },
+      relations: ['customer', 'orderItems', 'paymentTerm', 'commission', 'salesPartner'],
     });
   }
 
   async update(id: string, updateOrderDto: UpdateOrderDto) {
-    const { orderItems, paymentTerm, commission, salesPartner, ...orderData } = updateOrderDto;
-
-    // Fetch the existing order and related data
-    const existingOrder = await this.prisma.orders.findUnique({
+    const existingOrder = await this.orderRepository.findOne({
       where: { id },
-      include: {
-        orderItems: true,
-        paymentTerm: { include: { transactions: true } },
-        commission: { include: { transactions: true, salesPartner: true } },
-        salesPartner: true,
-      },
+      relations: ['customer', 'orderItems', 'paymentTerm', 'commission', 'salesPartner'],
     });
 
     if (!existingOrder) {
-      throw new Error('Order not found');
+      throw new NotFoundException(`Order with ID ${id} not found`);
     }
-
-    // Validate missing fields for commission
-    if (commission) {
-      if (!commission.salesPartnerId) {
-        throw new ConflictException('Sales partner for commission is missing.');
-      }
-      if (!commission.transactions || commission.transactions.length === 0) {
-        throw new ConflictException('Commission transactions are missing.');
-      }
-      commission.transactions.forEach((transaction, index) => {
-        if (!transaction.paymentMethod) {
-          throw new ConflictException(`Payment method for commission transaction #${index + 1} is missing.`);
-        }
-        if (transaction.amount === null || transaction.amount === 0) {
-          throw new ConflictException(`Amount for commission transaction #${index + 1} is missing.`);
-        }
-
-        if (transaction.percentage === null || transaction.percentage === 0) {
-          throw new ConflictException(`Percentage for commission transaction #${index + 1} is missing.`);
-        }
-
-        if (transaction.date === null) {
-          throw new ConflictException(`Date for commission transaction #${index + 1} is missing.`);
-        }
-
-        if (transaction.reference === null) {
-          throw new ConflictException(`Reference for commission transaction #${index + 1} is missing.`);
-        }
-
-        if (transaction.status === null) {
-          throw new ConflictException(`Status for commission transaction #${index + 1} is missing.`);
-        }
-      });
-    }
-
-    // Validate missing fields for paymentTerm
-    if (paymentTerm) {
-      if (!paymentTerm.transactions || paymentTerm.transactions.length === 0) {
-        throw new BadRequestException('Payment term transactions are missing.');
-      }
-      paymentTerm.transactions.forEach((transaction, index) => {
-        if (!transaction.paymentMethod) {
-          throw new BadRequestException(`Payment method for payment term transaction #${index + 1} is missing.`);
-        }
-      });
-    }
-
-    // Extract existing IDs for comparison
-    const existingOrderItemIds = existingOrder.orderItems.map(item => item.id);
-    const newOrderItemIds = orderItems.map(item => item.id);
-    const orderItemsToDelete = existingOrderItemIds.filter(id => !newOrderItemIds.includes(id));
 
     try {
-      // Perform the update operation
-      const updatedOrder = await this.prisma.orders.update({
-        where: { id },
-        data: {
-          series: orderData.series,
-          customer: {
-            connect: { id: orderData.customerId },
-          },
-          status: orderData.status,
-          orderDate: new Date(orderData.orderDate),
-          deliveryDate: new Date(orderData.deliveryDate),
-          orderSource: orderData.orderSource,
-          totalAmount: parseFloat(orderData.totalAmount.toString()),
-          tax: parseFloat(orderData.tax.toString()),
-          grandTotal: parseFloat(orderData.grandTotal.toString()),
-          totalQuantity: parseFloat(orderData.totalQuantity.toString()),
-          internalNote: orderData.internalNote,
-          fileNames: orderData.fileNames,
-          adminApproval: orderData.adminApproval,
-
-
-          // Update Payment Term
-          paymentTerm: paymentTerm ? {
-            delete: existingOrder.paymentTerm ? { id: existingOrder.paymentTerm.id } : undefined,
-            upsert: {
-              where: { id: paymentTerm.id || '' },
-              update: {
-                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
-                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-                status: this.getPaymentTermStatus(paymentTerm.remainingAmount, orderData.grandTotal),
-                forcePayment: paymentTerm.forcePayment,
-                transactions: {
-                  upsert: paymentTerm.transactions.map(transaction => ({
-                    where: { id: transaction.id || '' },
-                    update: {
-                      date: new Date(transaction.date),
-                      paymentMethod: transaction.paymentMethod,
-                      reference: transaction.reference,
-                      amount: parseFloat(transaction.amount.toString()),
-                      status: transaction.status  ? 'Paid' : 'Pending',
-                      description: transaction.description,
-                    },
-                    create: {
-                      date: new Date(transaction.date),
-                      paymentMethod: transaction.paymentMethod,
-                      reference: transaction.reference,
-                      amount: parseFloat(transaction.amount.toString()),
-                      status: transaction.status  ? 'Paid' : 'Pending',
-                      description: transaction.description,
-                    },
-                  })),
-                },
-              },
-              create: {
-                totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
-                remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-                status: this.getPaymentTermStatus(paymentTerm.remainingAmount, orderData.grandTotal),
-                forcePayment: paymentTerm.forcePayment,
-                transactions: {
-                  create: paymentTerm.transactions.map(transaction => ({
-                    date: new Date(transaction.date),
-                    paymentMethod: transaction.paymentMethod,
-                    reference: transaction.reference,
-                    amount: parseFloat(transaction.amount.toString()),
-                    status: transaction.status,
-                    description: transaction.description,
-                  })),
-                },
-              },
-            },
-          } : undefined,
-
-
-          // Update Order Items
-          orderItems: {
-            deleteMany: { id: { in: orderItemsToDelete } },
-            upsert: orderItems.map(item => ({
-              where: { id: item.id || '' },
-              update: {
-                itemId: item.itemId,
-                serviceId: item.serviceId,
-                width: item.width !== null ? parseFloat(item.width.toString()) : null,
-                height: item.height !== null ? parseFloat(item.height.toString()) : null,
-                discount: item.discount !== null ? parseFloat(item.discount.toString()) : 0,
-                level: parseFloat(item.level.toString()),
-                totalAmount: parseFloat(item.totalAmount.toString()),
-                adminApproval: item.adminApproval,
-                uomId: item.uomId,
-                quantity: parseFloat(item.quantity.toString()),
-                unitPrice: parseFloat(item.unitPrice.toString()),
-                description: item.description,
-                isDiscounted: item.isDiscounted,
-                status: item.status,
-                pricingId: item.pricingId,
-                unit: parseFloat(item.unit.toString()),
-                baseUomId: item.baseUomId,
-              },
-              create: {
-                itemId: item.itemId,
-                serviceId: item.serviceId,
-                width: item.width !== null ? parseFloat(item.width.toString()) : 0,
-                height: item.height !== null ? parseFloat(item.height.toString()) : 0,
-                discount: item.discount !== null ? parseFloat(item.discount.toString()) : 0,
-                level: parseFloat(item.level.toString()),
-                totalAmount: parseFloat(item.totalAmount.toString()),
-                adminApproval: item.adminApproval,
-                uomId: item.uomId,
-                quantity: parseFloat(item.quantity.toString()),
-                unitPrice: parseFloat(item.unitPrice.toString()),
-                description: item.description,
-                isDiscounted: item.isDiscounted,
-                status: item.status,
-                pricingId: item.pricingId,
-                unit: parseFloat(item.unit.toString()),
-                baseUomId: item.baseUomId,
-              },
-            })),
-          },
-
-          // Update Commission
-          commission: commission ? {
-            delete: existingOrder.commission ? { id: existingOrder.commission.id } : undefined,
-            upsert: {
-              where: { id: commission.id || '' },
-              update: {
-                salesPartnerId: commission.salesPartnerId,
-                totalAmount: parseFloat(commission.totalAmount.toString()),
-                paidAmount: parseFloat(commission.paidAmount.toString()),
-                transactions: {
-                  upsert: commission.transactions.map(transaction => ({
-                    where: { id: transaction.id || '' },
-                    update: {
-                      date: new Date(transaction.date),
-                      amount: parseFloat(transaction.amount.toString()),
-                      percentage: parseFloat(transaction.percentage.toString()),
-                      paymentMethod: transaction.paymentMethod,
-                      reference: transaction.reference,
-                      status: transaction.status,
-                      description: transaction.description,
-                    },
-                    create: {
-                      date: new Date(transaction.date),
-                      amount: parseFloat(transaction.amount.toString()),
-                      percentage: parseFloat(transaction.percentage.toString()),
-                      paymentMethod: transaction.paymentMethod,
-                      reference: transaction.reference,
-                      status: transaction.status,
-                      description: transaction.description,
-                    },
-                  })),
-                },
-              },
-              create: {
-                salesPartnerId: commission.salesPartnerId,
-                totalAmount: parseFloat(commission.totalAmount.toString()),
-                paidAmount: parseFloat(commission.paidAmount.toString()),
-                transactions: {
-                  create: commission.transactions.map(transaction => ({
-                    date: new Date(transaction.date),
-                    amount: parseFloat(transaction.amount.toString()),
-                    percentage: parseFloat(transaction.percentage.toString()),
-                    paymentMethod: transaction.paymentMethod,
-                    reference: transaction.reference,
-                    status: transaction.status,
-                    description: transaction.description,
-                  })),
-                },
-              },
-            },
-          } : undefined,
-
-          // Connect Sales Partner if available
-          salesPartner: salesPartner ? {
-            connect: { id: salesPartner.id },
-          } : undefined,
-        },
-        include: {
-          customer: true,
-          orderItems: true,
-          paymentTerm: { include: { transactions: true } },
-          commission: { include: { transactions: true, salesPartner: true } },
-          salesPartner: true,
-        },
+      await this.orderRepository.update(id, {
+        series: updateOrderDto.series,
+        customerId: updateOrderDto.customerId,
+        status: updateOrderDto.status,
+        orderDate: updateOrderDto.orderDate ? new Date(updateOrderDto.orderDate) : undefined,
+        deliveryDate: updateOrderDto.deliveryDate ? new Date(updateOrderDto.deliveryDate) : undefined,
+        orderSource: updateOrderDto.orderSource,
+        totalAmount: updateOrderDto.totalAmount ? parseFloat(updateOrderDto.totalAmount.toString()) : undefined,
+        tax: updateOrderDto.tax ? parseFloat(updateOrderDto.tax.toString()) : undefined,
+        grandTotal: updateOrderDto.grandTotal ? parseFloat(updateOrderDto.grandTotal.toString()) : undefined,
+        totalQuantity: updateOrderDto.totalQuantity ? parseFloat(updateOrderDto.totalQuantity.toString()) : undefined,
+        internalNote: updateOrderDto.internalNote,
+        fileNames: updateOrderDto.fileNames,
+        adminApproval: updateOrderDto.adminApproval,
+        salesPartnersId: updateOrderDto.salesPartner?.id,
       });
 
-      return updatedOrder;
+      return await this.orderRepository.findOne({
+        where: { id },
+        relations: ['customer', 'orderItems', 'paymentTerm', 'commission', 'salesPartner'],
+      });
     } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Unique constraint violation: An order with the same item and service already exists.');
-        }
-      }
       console.error('Error updating order:', error);
-      throw new BadRequestException('Failed to update order');
+      throw new Error(`An unexpected error occurred: ${error.message}`);
     }
   }
-
 
   async remove(id: string) {
     try {
-      return this.prisma.orders.delete({
-        where: { id },
-      });
+      const order = await this.orderRepository.findOne({ where: { id } });
+      if (!order) {
+        throw new NotFoundException(`Order with ID ${id} not found`);
+      }
+      
+      return await this.orderRepository.remove(order);
     } catch (error) {
       console.log(error);
-
+      throw new Error('An unexpected error occurred.');
     }
   }
 
-  getPaymentTermStatus(remainingAmount, grandTotal: number) {
-    if (remainingAmount > 0 && remainingAmount < grandTotal) {
-      return 'Partially Paid';
-    } else if (remainingAmount === 0) {
-      return 'Fully Paid';
-    } else if (remainingAmount === grandTotal) {
-      return 'Not Paid';
+  getPaymentTermStatus(remainingAmount: number, grandTotal: number) {
+    if (remainingAmount === 0) {
+      return 'Paid';
+    } else if (remainingAmount < grandTotal) {
+      return 'Partial';
+    } else {
+      return 'Pending';
+    }
   }
-}
 }

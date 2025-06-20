@@ -1,20 +1,21 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { services } from '@prisma/client';
+import { Service } from 'src/entities/service.entity';
 
 @Injectable()
 export class ServicesService {
-  constructor(private prisma: PrismaService){}
-  async create(createServiceDto: CreateServiceDto): Promise<services> {
+  constructor(
+    @InjectRepository(Service)
+    private serviceRepository: Repository<Service>
+  ) {}
 
-   const existingByName = await this.prisma.services.findFirst({
+  async create(createServiceDto: CreateServiceDto): Promise<Service> {
+    const existingByName = await this.serviceRepository.findOne({
       where: {
-        name: {
-          equals: createServiceDto.name,
-          mode: 'insensitive', // This makes the comparison case-insensitive
-        },
+        name: ILike(createServiceDto.name), // Case-insensitive search
       },
     });
 
@@ -22,53 +23,57 @@ export class ServicesService {
       throw new ConflictException('Service already exists');
     }
 
+    const service = this.serviceRepository.create({
+      name: createServiceDto.name,
+      description: createServiceDto.description,
+      status: createServiceDto.status,
+    });
 
-    return await this.prisma.services.create({
-      data: {
-        name: createServiceDto.name,
-        description: createServiceDto.description,
-        status: createServiceDto.status,
-      }
-    })
+    return await this.serviceRepository.save(service);
   }
 
   async findAll(skip: number, take: number) {
-    const [services, total] = await this.prisma.$transaction([
-      this.prisma.services.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      this.prisma.services.count()
-    ])
+    const [services, total] = await this.serviceRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      order: {
+        createdAt: 'DESC'
+      }
+    });
+    
     return {
       services,
       total
-    }
+    };
   }
 
   async findAllServices() {
-    return this.prisma.services.findMany()
+    return this.serviceRepository.find();
   }
 
-  findOne(id: string) {
-    return this.prisma.services.findUnique({
-      where: {id}
-    });
+  async findOne(id: string) {
+    const service = await this.serviceRepository.findOne({ where: { id } });
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+    return service;
   }
 
-  update(id: string, updateServiceDto: UpdateServiceDto) {
-    return this.prisma.services.update({
-      where: {id},
-      data: updateServiceDto
-    })
+  async update(id: string, updateServiceDto: UpdateServiceDto) {
+    const service = await this.serviceRepository.findOne({ where: { id } });
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    await this.serviceRepository.update(id, updateServiceDto);
+    return this.serviceRepository.findOne({ where: { id } });
   }
 
-  remove(id: string) {
-    return this.prisma.services.delete({
-      where: {id}
-    })
+  async remove(id: string) {
+    const service = await this.serviceRepository.findOne({ where: { id } });
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+    return this.serviceRepository.remove(service);
   }
 }

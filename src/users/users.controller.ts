@@ -5,8 +5,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { Role } from '@prisma/client';
-import { User } from './entities/user.entity';
+import { Role } from '../enums/role.enum';
+import { User } from '../entities/user.entity';
 
 @Controller('users')
 export class UsersController {

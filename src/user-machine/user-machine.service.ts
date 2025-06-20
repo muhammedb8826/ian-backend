@@ -1,48 +1,39 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserMachine } from 'src/entities/user-machine.entity';
 
 @Injectable()
 export class UserMachineService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(UserMachine)
+    private readonly userMachineRepository: Repository<UserMachine>,
+  ) {}
 
-  async assignMachineToUser(userId: string, machineId: string[]) {
-
-    if (!Array.isArray(machineId)) {
+  async assignMachineToUser(userId: string, machineIds: string[]) {
+    if (!Array.isArray(machineIds)) {
       throw new BadRequestException('machineId must be an array');
-  }
-
-  if (machineId.length === 0) {
+    }
+    if (machineIds.length === 0) {
       throw new BadRequestException('No machines provided for assignment');
-  }
+    }
 
     // Check for existing assignments
-    const existingAssignments = await this.prisma.userMachine.findMany({
-      where: {
-        userId,
-        machineId: { in: machineId },
-      },
+    const existingAssignments = await this.userMachineRepository.find({
+      where: machineIds.map(machineId => ({ userId, machineId })),
     });
-
     const existingMachineIds = new Set(existingAssignments.map(a => a.machineId));
-    const newMachineIds = machineId.filter(id => id && !existingMachineIds.has(id));
+    const newMachineIds = machineIds.filter(id => id && !existingMachineIds.has(id));
 
     if (newMachineIds.length === 0) {
-      // All provided machines are already assigned
       throw new BadRequestException('All provided machines are already assigned to this user.');
     }
 
-    const newAssignments = newMachineIds.map(machineId => ({
-      userId,
-      machineId,
-    }));
-
+    const newAssignments = newMachineIds.map(machineId =>
+      this.userMachineRepository.create({ userId, machineId })
+    );
     try {
-      await this.prisma.userMachine.createMany({
-        data: newAssignments,
-        skipDuplicates: true, // Skip duplicates at the database level
-      });
-
-      // Include information about duplicates in the response
+      await this.userMachineRepository.save(newAssignments);
       return {
         success: true,
         message: 'Machines assigned successfully.',
@@ -54,17 +45,11 @@ export class UserMachineService {
   }
 
   async getUserMachines(skip: number, take: number) {
-    const [userMachines, total] = await this.prisma.$transaction([
-      this.prisma.userMachine.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        include: {
-          user: true,
-          machine: true,
-        },
-      }),
-      this.prisma.userMachine.count(),
-    ]);
+    const [userMachines, total] = await this.userMachineRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      relations: ['user', 'machine'],
+    });
     return {
       userMachines,
       total,
@@ -72,28 +57,25 @@ export class UserMachineService {
   }
 
   async getUserMachineById(id: string) {
-    return this.prisma.userMachine.findUnique({
+    const userMachine = await this.userMachineRepository.findOne({
       where: { id },
-      include: {
-        user: true,
-        machine: true,
-      },
+      relations: ['user', 'machine'],
     });
+    if (!userMachine) throw new NotFoundException('UserMachine not found');
+    return userMachine;
   }
 
-  async updateUserMachine(id: string, machineId: string[]) {
-    const updates = machineId.map(machineId =>
-      this.prisma.userMachine.update({
-        where: { id },
-        data: { machineId },
-      })
+  async updateUserMachine(id: string, machineIds: string[]) {
+    const updates = machineIds.map(machineId =>
+      this.userMachineRepository.update(id, { machineId })
     );
     return Promise.all(updates);
   }
 
   async deleteUserMachine(id: string) {
-    return this.prisma.userMachine.delete({
-      where: { id },
-    });
+    const userMachine = await this.userMachineRepository.findOne({ where: { id } });
+    if (!userMachine) throw new NotFoundException('UserMachine not found');
+    await this.userMachineRepository.remove(userMachine);
+    return { message: `UserMachine with ID ${id} removed successfully` };
   }
 }

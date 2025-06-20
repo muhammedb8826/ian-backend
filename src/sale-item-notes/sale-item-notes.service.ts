@@ -1,70 +1,76 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateSaleItemNoteDto } from './dto/create-sale-item-note.dto';
 import { UpdateSaleItemNoteDto } from './dto/update-sale-item-note.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { SalesItemNote } from 'src/entities/sales-item-note.entity';
 
 @Injectable()
 export class SaleItemNotesService {
-  constructor(private readonly prisma: PrismaService) {}
- async create(saleItemId: string, noteDto: CreateSaleItemNoteDto) {
+  constructor(
+    @InjectRepository(SalesItemNote)
+    private readonly salesItemNoteRepository: Repository<SalesItemNote>,
+  ) {}
 
+  async create(saleItemId: string, noteDto: CreateSaleItemNoteDto) {
     if (!noteDto || !noteDto.text || !noteDto.userId) {
       throw new Error('Invalid note data');
     }
 
-    return this.prisma.salesItemNote.create({
-      data: {
-        saleItemId,
-        text: noteDto.text,
-        hour: new Date(), // You can modify this logic as needed
-        date: new Date(),
-        userId: noteDto.userId, // Pass the current user id
-      },
+    const salesItemNote = this.salesItemNoteRepository.create({
+      saleItemId,
+      text: noteDto.text,
+      hour: new Date(), // You can modify this logic as needed
+      date: new Date(),
+      userId: noteDto.userId, // Pass the current user id
     });
+
+    return await this.salesItemNoteRepository.save(salesItemNote);
   }
 
- async findAll(saleItemId) {
-    return this.prisma.salesItemNote.findMany({
-     where: { saleItemId },
-      include: {
-        user: true,
-      },
+  async findAll(saleItemId: string) {
+    return this.salesItemNoteRepository.find({
+      where: { saleItemId },
+      relations: ['user'],
     });
   }
 
   async findOne(id: string) {
-    return this.prisma.salesItemNote.findUnique({
+    return this.salesItemNoteRepository.findOne({
       where: { id },
-      include: {
-        user: true,
-      },
+      relations: ['user'],
     });
   }
 
- async update(id: string, updateSaleItemNoteDto: UpdateSaleItemNoteDto) {
+  async update(id: string, updateSaleItemNoteDto: UpdateSaleItemNoteDto) {
     try {
-      const updatedSaleItemNote = await this.prisma.salesItemNote.update({
-        where: { id },
-        data: updateSaleItemNoteDto,
+      await this.salesItemNoteRepository.update(id, updateSaleItemNoteDto);
+      
+      return await this.salesItemNoteRepository.findOne({
+        where: { id }
       });
-      return updatedSaleItemNote;
     } catch (error) {
-      if (error.code === 'P2002') { // Unique constraint error code
+      if (error.code === 'ER_DUP_ENTRY') { // Unique constraint error code
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
       throw new Error('An unexpected error occurred.');
     }
   }
 
-  remove(id: string) {
+  async remove(id: string) {
     try {
-      const deletedSaleItemNote = this.prisma.salesItemNote.delete({
-        where: { id },
+      const salesItemNote = await this.salesItemNoteRepository.findOne({
+        where: { id }
       });
-      return deletedSaleItemNote;
+
+      if (!salesItemNote) {
+        throw new NotFoundException(`SalesItemNote with ID ${id} not found`);
+      }
+
+      return await this.salesItemNoteRepository.remove(salesItemNote);
     } catch (error) {
-      if (error.code === 'P2025') { // Record not found error code
-        throw new NotFoundException(`PurchaseItemNote with ID ${id} not found`);
+      if (error instanceof NotFoundException) {
+        throw error;
       }
       throw new Error('An unexpected error occurred.');
     }

@@ -1,8 +1,8 @@
 # Database Configuration
-# Replace username, password, localhost, and ian_backend with your actual PostgreSQL credentials
-DATABASE_URL="postgresql://username:password@localhost:5432/ian_backend?schema=public"
-POSTGRES_PRISMA_URL="postgresql://username:password@localhost:5432/ian_backend?schema=public"
-POSTGRES_URL_NON_POOLING="postgresql://username:password@localhost:5432/ian_backend?schema=public"
+# MySQL credentials from Docker setup
+DATABASE_URL="mysql://root:ian_password@localhost:3306/ian_backend"
+POSTGRES_PRISMA_URL="mysql://ian_user:ian_password@localhost:3306/ian_backend"
+POSTGRES_URL_NON_POOLING="mysql://ian_user:ian_password@localhost:3306/ian_backend"
 
 # Application Configuration
 PORT=8080

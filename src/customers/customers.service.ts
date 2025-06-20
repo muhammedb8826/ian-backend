@@ -1,14 +1,20 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Customer } from 'src/entities/customer.entity';
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService){}
+  constructor(
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>
+  ) {}
+
   async create(createCustomerDto: CreateCustomerDto) {
-     // Check for existing customer by phone number
-     const existingCustomerByPhone = await this.prisma.customers.findUnique({
+    // Check for existing customer by phone number
+    const existingCustomerByPhone = await this.customerRepository.findOne({
       where: {
         phone: createCustomerDto.phone,
       },
@@ -20,7 +26,7 @@ export class CustomersService {
 
     // Check for existing customer by email, but only if email is provided
     if (createCustomerDto.email) {
-      const existingCustomerByEmail = await this.prisma.customers.findUnique({
+      const existingCustomerByEmail = await this.customerRepository.findOne({
         where: {
           email: createCustomerDto.email,
         },
@@ -31,113 +37,96 @@ export class CustomersService {
       }
     }
 
-    return this.prisma.customers.create({
-      data: {
-        fullName: createCustomerDto.fullName,
-        address: createCustomerDto.address,
-        email: createCustomerDto.email,
-        phone: createCustomerDto.phone,
-        company: createCustomerDto.company,
-        description: createCustomerDto.description
-      }
-    })
+    const customer = this.customerRepository.create({
+      fullName: createCustomerDto.fullName,
+      address: createCustomerDto.address,
+      email: createCustomerDto.email,
+      phone: createCustomerDto.phone,
+      company: createCustomerDto.company,
+      description: createCustomerDto.description
+    });
+
+    return await this.customerRepository.save(customer);
   }
 
   async findAll(skip: number, take: number) {
-    const [customers, total] =await this.prisma.$transaction([
-      this.prisma.customers.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      this.prisma.customers.count()
-    ])
-
-    return {customers, total}
-  }
-
-  async findAllCustomers(search? : string) {
-    return this.prisma.customers.findMany({
-      where: search ? {
-        OR: [
-          {
-            fullName: {
-              contains: search
-            }
-          },
-          {
-            email: {
-              contains: search
-            }
-          },
-          {
-            phone: {
-              contains: search
-            }
-          }
-        ],
-      } : {},
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
-  }
-
-  async findOne(id: string) {
-    return this.prisma.customers.findUnique({
-      where: {
-        id
-      }
-    })
-  }
-
-  async update(id: string, updateCustomerDto: UpdateCustomerDto) {
-    
-    // Check for existing customer by phone number
-    const existingCustomerByPhone = await this.prisma.customers.findFirst({
-      where: {
-        phone: updateCustomerDto.phone,
-        NOT: {
-          id
-        }
+    const [customers, total] = await this.customerRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      order: {
+        createdAt: 'DESC'
       }
     });
 
-    if (existingCustomerByPhone) {
+    return { customers, total };
+  }
+
+  async findAllCustomers(search?: string) {
+    const queryBuilder = this.customerRepository
+      .createQueryBuilder('customer')
+      .orderBy('customer.createdAt', 'DESC');
+
+    if (search) {
+      queryBuilder.where(
+        '(LOWER(customer.fullName) LIKE LOWER(:search) OR LOWER(customer.email) LIKE LOWER(:search) OR LOWER(customer.phone) LIKE LOWER(:search))',
+        { search: `%${search}%` }
+      );
+    }
+
+    return queryBuilder.getMany();
+  }
+
+  async findOne(id: string) {
+    const customer = await this.customerRepository.findOne({
+      where: { id }
+    });
+    
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+    
+    return customer;
+  }
+
+  async update(id: string, updateCustomerDto: UpdateCustomerDto) {
+    const customer = await this.customerRepository.findOne({ where: { id } });
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+    
+    // Check for existing customer by phone number
+    const existingCustomerByPhone = await this.customerRepository.findOne({
+      where: {
+        phone: updateCustomerDto.phone,
+      },
+    });
+
+    if (existingCustomerByPhone && existingCustomerByPhone.id !== id) {
       throw new ConflictException('Customer with this phone number already exists');
     }
 
     // Check for existing customer by email, but only if email is provided
     if (updateCustomerDto.email) {
-      const existingCustomerByEmail = await this.prisma.customers.findFirst({
+      const existingCustomerByEmail = await this.customerRepository.findOne({
         where: {
           email: updateCustomerDto.email,
-          NOT: {
-            id
-          }
-        }
+        },
       });
 
-      if (existingCustomerByEmail) {
+      if (existingCustomerByEmail && existingCustomerByEmail.id !== id) {
         throw new ConflictException('Customer with this email already exists');
       }
     }
 
-    return this.prisma.customers.update({
-      where: {
-        id
-      },
-      data: updateCustomerDto
-    })
+    await this.customerRepository.update(id, updateCustomerDto);
+    return this.customerRepository.findOne({ where: { id } });
   }
 
   async remove(id: string) {
-    return this.prisma.customers.delete({
-      where: {
-        id
-      }
-    })
+    const customer = await this.customerRepository.findOne({ where: { id } });
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+    return this.customerRepository.remove(customer);
   }
 }

@@ -1,37 +1,41 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreatePurchaseItemDto } from './dto/create-purchase-item.dto';
 import { UpdatePurchaseItemDto } from './dto/update-purchase-item.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { PurchaseItems } from 'src/entities/purchase-item.entity';
+import { Item } from 'src/entities/item.entity';
 
 @Injectable()
 export class PurchaseItemsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(PurchaseItems)
+    private purchaseItemRepository: Repository<PurchaseItems>,
+    @InjectRepository(Item)
+    private itemRepository: Repository<Item>
+  ) {}
+
   async create(createPurchaseItemDto: CreatePurchaseItemDto) {
-    try{
-      return await this.prisma.purchaseItems.create({
-        data: {
-          purchaseId: createPurchaseItemDto.purchaseId,
-          itemId: createPurchaseItemDto.itemId,
-          uomId: createPurchaseItemDto.uomId,
-          baseUomId: createPurchaseItemDto.baseUomId,
-          unit: parseFloat(createPurchaseItemDto.unit.toString()),
-          quantity: parseFloat(createPurchaseItemDto.quantity.toString()),
-          unitPrice: parseFloat(createPurchaseItemDto.unitPrice.toString()),
-          amount: parseFloat(createPurchaseItemDto.amount.toString()),
-          description: createPurchaseItemDto.description,
-          status: createPurchaseItemDto.status,
-        },
-      })
+    try {
+      const purchaseItem = this.purchaseItemRepository.create({
+        purchaseId: createPurchaseItemDto.purchaseId,
+        itemId: createPurchaseItemDto.itemId,
+        uomId: createPurchaseItemDto.uomId,
+        baseUomId: createPurchaseItemDto.baseUomId,
+        unit: parseFloat(createPurchaseItemDto.unit.toString()),
+        quantity: parseFloat(createPurchaseItemDto.quantity.toString()),
+        unitPrice: parseFloat(createPurchaseItemDto.unitPrice.toString()),
+        amount: parseFloat(createPurchaseItemDto.amount.toString()),
+        description: createPurchaseItemDto.description,
+        status: createPurchaseItemDto.status,
+      });
+
+      return await this.purchaseItemRepository.save(purchaseItem);
     } catch (error) {
       console.error('Error creating purchase item:', error);
 
-      if (error.code === 'P2002') {
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
-
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error('Prisma error details:', error.meta);
       }
 
       throw new Error(`An unexpected error occurred: ${error.message}`);
@@ -39,152 +43,92 @@ export class PurchaseItemsService {
   }
 
   async findAllPurchaseItems(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item?: string, status?: string) {
-    const whereClause: any = {};
+    const queryBuilder = this.purchaseItemRepository
+      .createQueryBuilder('purchaseItem')
+      .leftJoinAndSelect('purchaseItem.purchase', 'purchase')
+      .leftJoinAndSelect('purchase.vendor', 'vendor')
+      .leftJoinAndSelect('purchaseItem.uoms', 'uoms')
+      .leftJoinAndSelect('purchaseItem.item', 'item')
+      .leftJoinAndSelect('purchaseItem.purchaseItemNotes', 'purchaseItemNotes')
+      .leftJoinAndSelect('purchaseItemNotes.user', 'user')
+      .orderBy('purchaseItem.createdAt', 'DESC')
+      .skip(+skip)
+      .take(+take);
 
     if (search) {
-      whereClause.OR = [
-        { 
-          purchase: {
-            series: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          },
-         },
-        { purchase: { 
-          vendor: {
-            OR: [
-              {
-                fullName: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                email: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                phone: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              },
-            ],
-          }
-         } },
-      ];
+      queryBuilder.andWhere(
+        '(LOWER(purchase.series) LIKE LOWER(:search) OR LOWER(vendor.fullName) LIKE LOWER(:search) OR LOWER(vendor.email) LIKE LOWER(:search) OR LOWER(vendor.phone) LIKE LOWER(:search))',
+        { search: `%${search}%` }
+      );
     }
 
     if (startDate && endDate) {
-      whereClause.purchase = {
-        ...whereClause.purchase,
-        orderDate: {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
-        },
-      };
+      queryBuilder.andWhere('purchase.orderDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
     }
 
     if (item) {
-      whereClause.item = {
-        name: {
-          contains: item,
-          mode: 'insensitive',
-        },
-      };
+      queryBuilder.andWhere('LOWER(item.name) LIKE LOWER(:item)', {
+        item: `%${item}%`
+      });
     }
 
     if (status) {
-      whereClause.status = status;
+      queryBuilder.andWhere('purchaseItem.status = :status', { status });
     }
 
-    const [purchaseItems, total, totalAmountSum] = await this.prisma.$transaction([
-      this.prisma.purchaseItems.findMany({
-        skip: +skip,
-      take: +take,
-      where: whereClause,
-      orderBy: {
-        createdAt: 'desc',
-      },
-        include: {
-          purchase: {
-            include: {
-              vendor: true,
-            },
-          },
-          uoms: true,
-          item: true,
-          purchaseItemNotes: {
-            include: {
-              user: true,
-            },
-          },
-        },
-      }),
-      this.prisma.purchaseItems.count({ where: whereClause }),
-      this.prisma.purchaseItems.aggregate({
-        where: whereClause,
-        _sum: {
-          unitPrice: true,
-        },
-      }),
-    ]);
-    
+    const [purchaseItems, total] = await queryBuilder.getManyAndCount();
+
+    // Calculate total amount sum
+    const totalAmountSum = purchaseItems.reduce((sum, item) => sum + item.unitPrice, 0);
 
     return {
       purchaseItems,
       total,
-      totalAmountSum: totalAmountSum._sum.unitPrice || 0,
+      totalAmountSum,
     };
   }
 
   async findAll(purchaseId: string) {
-    const purchaseItems = await this.prisma.purchaseItems.findMany({
+    const purchaseItems = await this.purchaseItemRepository.find({
       where: { purchaseId },
-      include: {
+      relations: {
         purchase: true,
         item: true,
         purchaseItemNotes: {
-          include: {
-            user: true,
-          },
+          user: true,
         },
-        }
-      });
+      }
+    });
 
     return purchaseItems;
   }
 
-
   async update(id: string, updatePurchaseItemDto: UpdatePurchaseItemDto) {
-    // Start transaction to ensure consistency
-    return await this.prisma.$transaction(async (prisma) => {
-      try {
-        // Fetch the purchase item being updated
-        const purchaseItem = await prisma.purchaseItems.findUnique({
-          where: { id },
-          include: { item: true }, // Fetch the associated item
-        });
+    try {
+      // Fetch the purchase item being updated
+      const purchaseItem = await this.purchaseItemRepository.findOne({
+        where: { id },
+        relations: { item: true }, // Fetch the associated item
+      });
 
-        if (!purchaseItem) {
-          throw new NotFoundException(`Purchase Item with ID ${id} not found`);
-        }
+      if (!purchaseItem) {
+        throw new NotFoundException(`Purchase Item with ID ${id} not found`);
+      }
 
-        // Fetch the related item
-        const relatedItem = purchaseItem.item;
+      // Fetch the related item
+      const relatedItem = purchaseItem.item;
 
-        if (!relatedItem) {
-          throw new NotFoundException(`Related item not found for Purchase Item with ID ${id}`);
-        }
+      if (!relatedItem) {
+        throw new NotFoundException(`Related item not found for Purchase Item with ID ${id}`);
+      }
 
-        // Calculate the new quantity based on the status
-        let newQuantity = relatedItem.quantity;
+      // Calculate the new quantity based on the status
+      let newQuantity = relatedItem.quantity;
 
-
-        switch (updatePurchaseItemDto.status) {
+      switch (updatePurchaseItemDto.status) {
         case 'Cancelled':
           newQuantity -= purchaseItem.unit;
           break;
@@ -196,53 +140,47 @@ export class PurchaseItemsService {
           break;
       }
 
-        // Ensure that quantity cannot drop below zero
-        if (newQuantity < 0) {
-          throw new ConflictException(`Item quantity cannot be less than zero.`);
-        }
-
-        // Update the item with the new quantity
-        await prisma.items.update({
-          where: { id: relatedItem.id },
-          data: {
-            quantity: newQuantity,
-          },
-        });
-
-        // Update the purchase item
-
-        const updateData = {
-          quantity: parseFloat(updatePurchaseItemDto.quantity.toString()),
-          unitPrice: parseFloat(updatePurchaseItemDto.unitPrice.toString()),
-          status: updatePurchaseItemDto.status,
-        };
-
-        const updatedPurchaseItem = await prisma.purchaseItems.update({
-          where: { id },
-          data: updateData,
-          include: { purchaseItemNotes: true },
-        });
-  
-        return updatedPurchaseItem;
-      } catch (error) {
-        console.log('Error updating purchase item:', error);
-  
-        if (error.code === 'P2002') {
-          throw new ConflictException('Unique constraint failed. Please check your data.');
-        }
-  
-        throw new Error('An unexpected error occurred: ' + error.message);
+      // Ensure that quantity cannot drop below zero
+      if (newQuantity < 0) {
+        throw new ConflictException(`Item quantity cannot be less than zero.`);
       }
-    });
+
+      // Update the item with the new quantity
+      await this.itemRepository.update(
+        { id: relatedItem.id },
+        { quantity: newQuantity }
+      );
+
+      // Update the purchase item
+      const updateData = {
+        quantity: parseFloat(updatePurchaseItemDto.quantity.toString()),
+        unitPrice: parseFloat(updatePurchaseItemDto.unitPrice.toString()),
+        status: updatePurchaseItemDto.status,
+      };
+
+      await this.purchaseItemRepository.update(id, updateData);
+
+      return this.purchaseItemRepository.findOne({
+        where: { id },
+        relations: { purchaseItemNotes: true }
+      });
+    } catch (error) {
+      console.log('Error updating purchase item:', error);
+
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('Unique constraint failed. Please check your data.');
+      }
+
+      throw new Error('An unexpected error occurred: ' + error.message);
+    }
   }
 
-
-
   async remove(id: string) {
-    const deletedPurchaseItem = await this.prisma.purchaseItems.delete({
-      where: { id },
-    });
+    const purchaseItem = await this.purchaseItemRepository.findOne({ where: { id } });
+    if (!purchaseItem) {
+      throw new NotFoundException(`Purchase Item with ID ${id} not found`);
+    }
 
-    return deletedPurchaseItem;
+    return await this.purchaseItemRepository.remove(purchaseItem);
   }
 }

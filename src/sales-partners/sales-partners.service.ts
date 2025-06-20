@@ -1,146 +1,134 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Like } from 'typeorm';
 import { CreateSalesPartnerDto } from './dto/create-sales-partner.dto';
 import { UpdateSalesPartnerDto } from './dto/update-sales-partner.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { SalesPartner } from 'src/entities/sales-partner.entity';
 
 @Injectable()
 export class SalesPartnersService {
-  constructor(private prisma: PrismaService) { }
-  async create(createSalesPartnerDto: CreateSalesPartnerDto) {
+  constructor(
+    @InjectRepository(SalesPartner)
+    private readonly salesPartnerRepository: Repository<SalesPartner>,
+  ) {}
 
-    const existingCustomerByPhone = await this.prisma.salesPartners.findUnique({
+  async create(createSalesPartnerDto: CreateSalesPartnerDto) {
+    const existingCustomerByPhone = await this.salesPartnerRepository.findOne({
       where: {
         phone: createSalesPartnerDto.phone
       }
-    })
+    });
 
     if (existingCustomerByPhone) {
-      throw new ConflictException('Sales Partner with this phone number already exists')
+      throw new ConflictException('Sales Partner with this phone number already exists');
     }
 
     if (createSalesPartnerDto.email) {
-      const existingCustomerByEmail = await this.prisma.salesPartners.findUnique({
+      const existingCustomerByEmail = await this.salesPartnerRepository.findOne({
         where: {
           email: createSalesPartnerDto.email
         }
-      })
+      });
 
       if (existingCustomerByEmail) {
-        throw new ConflictException('Sales Partner with this email already exists')
+        throw new ConflictException('Sales Partner with this email already exists');
       }
     }
 
+    const salesPartner = this.salesPartnerRepository.create({
+      fullName: createSalesPartnerDto.fullName,
+      address: createSalesPartnerDto.address,
+      email: createSalesPartnerDto.email,
+      phone: createSalesPartnerDto.phone,
+      company: createSalesPartnerDto.company,
+      description: createSalesPartnerDto.description
+    });
 
-    return this.prisma.salesPartners.create({
-      data: {
-        fullName: createSalesPartnerDto.fullName,
-        address: createSalesPartnerDto.address,
-        email: createSalesPartnerDto.email,
-        phone: createSalesPartnerDto.phone,
-        company: createSalesPartnerDto.company,
-        description: createSalesPartnerDto.description
-      }
-    })
-
+    return await this.salesPartnerRepository.save(salesPartner);
   }
 
   async findAll(skip: number, take: number) {
-    const [salesPartners, total] = await this.prisma.$transaction([
-      this.prisma.salesPartners.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      this.prisma.salesPartners.count()
-    ])
+    const [salesPartners, total] = await this.salesPartnerRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      order: {
+        createdAt: 'DESC'
+      }
+    });
 
     return {
       salesPartners,
       total
-    }
+    };
   }
 
   async findAllSalesPartners(search?: string) {
-    return this.prisma.salesPartners.findMany({
-      where: search ? {
-        OR: [
-          {
-            fullName: {
-              contains: search
-            }
-          },
-          {
-            email: {
-              contains: search
-            }
-          },
-          {
-            phone: {
-              contains: search
-            }
-          },
-          {
-            company: {
-              contains: search
-            }
-          }
-        ],
-      }
-        : {},
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
+    const whereConditions = search ? [
+      { fullName: Like(`%${search}%`) },
+      { email: Like(`%${search}%`) },
+      { phone: Like(`%${search}%`) },
+      { company: Like(`%${search}%`) }
+    ] : {};
 
+    return this.salesPartnerRepository.find({
+      where: whereConditions,
+      order: {
+        createdAt: 'DESC'
+      }
+    });
   }
 
   async findOne(id: string) {
-    return this.prisma.salesPartners.findUnique({
+    return this.salesPartnerRepository.findOne({
       where: { id }
     });
   }
 
   async update(id: string, updateSalesPartnerDto: UpdateSalesPartnerDto) {
-
-    const currentSalesPartner = await this.prisma.salesPartners.findUnique({
+    const currentSalesPartner = await this.salesPartnerRepository.findOne({
       where: { id },
     });
 
     if (!currentSalesPartner) {
-      throw new ConflictException('Sales Partner not found')
+      throw new ConflictException('Sales Partner not found');
     }
 
     if (updateSalesPartnerDto.email && updateSalesPartnerDto.email !== currentSalesPartner.email) {
-      const existingPartnerWithEmail = await this.prisma.salesPartners.findUnique({
+      const existingPartnerWithEmail = await this.salesPartnerRepository.findOne({
         where: { email: updateSalesPartnerDto.email },
       });
-  
+
       if (existingPartnerWithEmail) {
         throw new ConflictException('Email already in use by another sales partner');
       }
     }
 
     if (updateSalesPartnerDto.phone && updateSalesPartnerDto.phone !== currentSalesPartner.phone) {
-      const existingPartnerWithPhone = await this.prisma.salesPartners.findUnique({
+      const existingPartnerWithPhone = await this.salesPartnerRepository.findOne({
         where: { phone: updateSalesPartnerDto.phone },
       });
-  
+
       if (existingPartnerWithPhone) {
         throw new ConflictException('Phone number already in use by another sales partner');
       }
     }
 
-    return this.prisma.salesPartners.update({
-      where: { id },
-      data: updateSalesPartnerDto
-    })
+    await this.salesPartnerRepository.update(id, updateSalesPartnerDto);
+    
+    return this.salesPartnerRepository.findOne({
+      where: { id }
+    });
   }
 
   async remove(id: string) {
-    return this.prisma.salesPartners.delete({
+    const salesPartner = await this.salesPartnerRepository.findOne({
       where: { id }
-    })
+    });
+
+    if (!salesPartner) {
+      throw new ConflictException('Sales Partner not found');
+    }
+
+    return this.salesPartnerRepository.remove(salesPartner);
   }
 }

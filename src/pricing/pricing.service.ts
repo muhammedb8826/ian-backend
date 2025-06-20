@@ -1,87 +1,89 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreatePricingDto } from './dto/create-pricing.dto';
 import { UpdatePricingDto } from './dto/update-pricing.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Pricing } from 'src/entities/pricing.entity';
 
 @Injectable()
 export class PricingService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(Pricing)
+    private readonly pricingRepository: Repository<Pricing>,
+  ) {}
+
   async create(createPricingDto: CreatePricingDto) {
     const { itemId, serviceId } = createPricingDto;
 
-    const existing = await this.prisma.pricing.findUnique({
-      where: { itemId_serviceId: { itemId, serviceId } }
+    const existing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId }
     });
 
     if (existing) {
       throw new ConflictException('Pricing already exists');
     }
 
-    return this.prisma.pricing.create({
-      data: createPricingDto
-    });
+    const pricing = this.pricingRepository.create(createPricingDto);
+    return await this.pricingRepository.save(pricing);
   }
 
   async findAll(skip: number, take: number) {
-    const [pricings, total] = await this.prisma.$transaction([
-      this.prisma.pricing.findMany({
-        skip: +skip,
-        take: +take,
-        orderBy: { createdAt: 'desc' },
-        include: { item: true, service: true }
-      }),
-      this.prisma.pricing.count()
-    ]);
+    const [pricings, total] = await this.pricingRepository.findAndCount({
+      skip: +skip,
+      take: +take,
+      order: { createdAt: 'DESC' },
+      relations: ['item', 'service']
+    });
+    
     return { pricings, total };
   }
 
-
   async findAllPricing() {
-    return this.prisma.pricing.findMany({
-      include: { item: true, service: true }
+    return this.pricingRepository.find({
+      relations: ['item', 'service']
     });
   }
 
   async findOne(id: string) {
-    const pricing = await this.prisma.pricing.findUnique({
+    const pricing = await this.pricingRepository.findOne({
       where: { id },
-      include: { item: true, service: true }
+      relations: ['item', 'service']
     });
 
     if (!pricing) {
-      throw new ConflictException('Pricing not found');
+      throw new NotFoundException('Pricing not found');
     }
 
     return pricing;
   }
 
   async update(id: string, updatePricingDto: UpdatePricingDto) {
- 
-   const existing = await this.prisma.pricing.findUnique({
+    const existing = await this.pricingRepository.findOne({
       where: { id }
     });
 
     if (!existing) {
-      throw new ConflictException('Pricing not found');
+      throw new NotFoundException('Pricing not found');
     }
 
-    return this.prisma.pricing.update({
+    await this.pricingRepository.update(id, updatePricingDto);
+    
+    return await this.pricingRepository.findOne({
       where: { id },
-      data: updatePricingDto
+      relations: ['item', 'service']
     });
   }
 
   async remove(id: string) {
-    const existing = await this.prisma.pricing.findUnique({
+    const existing = await this.pricingRepository.findOne({
       where: { id }
     });
 
     if (!existing) {
-      throw new ConflictException('Pricing not found');
+      throw new NotFoundException('Pricing not found');
     }
 
-    return this.prisma.pricing.delete({
-      where: { id }
-    });
+    await this.pricingRepository.remove(existing);
+    return { message: `Pricing with ID ${id} removed successfully` };
   }
 }

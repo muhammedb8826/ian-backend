@@ -1,12 +1,19 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Item } from '../entities/item.entity';
+import { Machine } from '../entities/machine.entity';
 
 @Injectable()
 export class ItemsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(Item)
+    private itemRepository: Repository<Item>,
+    @InjectRepository(Machine)
+    private machineRepository: Repository<Machine>
+  ) {}
 
   async create(createItemDto: CreateItemDto) {
     if (!createItemDto.machineId) {
@@ -14,7 +21,7 @@ export class ItemsService {
     }
   
     // Check if the machine exists
-    const machineExists = await this.prisma.machines.findUnique({
+    const machineExists = await this.machineRepository.findOne({
       where: { id: createItemDto.machineId },
     });
   
@@ -23,10 +30,8 @@ export class ItemsService {
     }
   
     // Check if an item with the same name already exists
-
-    const normalizedAttribute = createItemDto.name.toLowerCase();
-    const existingItem = await this.prisma.items.findUnique({
-      where: { name: normalizedAttribute },
+    const existingItem = await this.itemRepository.findOne({
+      where: { name: ILike(createItemDto.name) },
     });
   
     if (existingItem) {
@@ -34,52 +39,27 @@ export class ItemsService {
     }
 
     try {
-      return await this.prisma.items.create({
-        data: {
-          name: createItemDto.name,
-          description: createItemDto.description || '',
-          reorder_level: createItemDto.reorder_level || 0,
-          initial_stock: createItemDto.initial_stock || 0,
-          updated_initial_stock: createItemDto.updated_initial_stock || 0,
-          can_be_sold: createItemDto.can_be_sold || false,
-          can_be_purchased: createItemDto.can_be_purchased || false,
-          quantity: createItemDto.quantity || 0,
-          defaultUom: createItemDto.defaultUomId ? { connect: { id: createItemDto.defaultUomId } } : undefined,
-          purchaseUom: createItemDto.purchaseUomId? { connect: { id: createItemDto.purchaseUomId } } : undefined,
-          machine: { connect: { id: createItemDto.machineId } },
-          unitCategory: createItemDto.unitCategoryId ? { connect: { id: createItemDto.unitCategoryId } } : undefined, // Connect unitCategory
-        },
-        include: {
-          defaultUom: true,
-          purchaseUom: true,
-          machine: true,
-          services: true,
-          unitCategory: true
-        }
+      const item = this.itemRepository.create({
+        name: createItemDto.name,
+        description: createItemDto.description || '',
+        reorder_level: createItemDto.reorder_level || 0,
+        initial_stock: createItemDto.initial_stock || 0,
+        updated_initial_stock: createItemDto.updated_initial_stock || 0,
+        can_be_sold: createItemDto.can_be_sold || false,
+        can_be_purchased: createItemDto.can_be_purchased || false,
+        quantity: createItemDto.quantity || 0,
+        defaultUomId: createItemDto.defaultUomId,
+        purchaseUomId: createItemDto.purchaseUomId,
+        machineId: createItemDto.machineId,
+        unitCategoryId: createItemDto.unitCategoryId,
       });
+
+      return await this.itemRepository.save(item);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        switch (error.code) {
-          case 'P2002': // Unique constraint violation
-            const target = error.meta?.target;
-            if (Array.isArray(target)) {
-              if (target.includes('items_name_key')) {
-                throw new ConflictException('An item with this name already exists.');
-              } else if (target.includes('services_name_itemId_key')) {
-                throw new ConflictException('A service with this name already exists for this item.');
-              } else if (target.includes('discounts_level_itemId_key')) {
-                throw new ConflictException('A discount with this level already exists for this item.');
-              }
-            }
-            break;
-          case 'P2003': // Foreign key constraint violation
-            throw new ConflictException('Foreign key constraint failed.');
-          case 'P2025': // Record not found
-            throw new NotFoundException('The record you are trying to update or delete does not exist.');
-          default:
-            console.log(error);
-            throw new Error('An unexpected error occurred.');
-        }
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('An item with this name already exists.');
+      } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+        throw new ConflictException('Foreign key constraint failed.');
       } else {
         console.log(error);
         throw new Error('An unexpected error occurred.');
@@ -88,40 +68,25 @@ export class ItemsService {
   }
 
   async findAll(skip: number, take: number, search?: string) {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.items.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        where: search ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        } : {},
-        include: {
-          services: true,
-          defaultUom: true,
-          purchaseUom: true,
-          machine: true,
-          unitCategory: {
-            include: {
-              uoms: true
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      this.prisma.items.count({
-        where: search ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        } : {},
-      }),
-    ]);
+    const queryBuilder = this.itemRepository
+      .createQueryBuilder('item')
+      .leftJoinAndSelect('item.machine', 'machine')
+      .leftJoinAndSelect('item.defaultUom', 'defaultUom')
+      .leftJoinAndSelect('item.purchaseUom', 'purchaseUom')
+      .leftJoinAndSelect('item.unitCategory', 'unitCategory')
+      .orderBy('item.createdAt', 'DESC')
+      .skip(Number(skip))
+      .take(Number(take));
+
+    if (search) {
+      queryBuilder.where(
+        '(LOWER(item.name) LIKE LOWER(:search) OR LOWER(item.description) LIKE LOWER(:search))',
+        { search: `%${search}%` }
+      );
+    }
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+    
     return {
       items,
       total
@@ -129,36 +94,27 @@ export class ItemsService {
   }
 
   async findAllItems() {
-    return this.prisma.items.findMany({
-      include: {
-        services: true,
+    return this.itemRepository.find({
+      relations: {
+        machine: true,
         defaultUom: true,
         purchaseUom: true,
-        machine: true,
-        unitCategory: {
-          include: {
-            uoms: true
-          }
-        }
+        unitCategory: true
       }
-    })
+    });
   }
 
   async findOne(id: string) {
-    const item = await this.prisma.items.findUnique({
-       where: { id },
-       include: {
-         services: true,
-         defaultUom: true,
-         purchaseUom: true,
-         machine: true,
-         unitCategory: {
-          include: {
-            uoms: true
-          }
-        }
-       }
-     });
+    const item = await this.itemRepository.findOne({
+      where: { id },
+      relations: {
+        machine: true,
+        defaultUom: true,
+        purchaseUom: true,
+        unitCategory: true
+      }
+    });
+    
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
@@ -166,12 +122,12 @@ export class ItemsService {
   }
 
   async update(id: string, updateItemDto: UpdateItemDto) {
-    const item = await this.prisma.items.findUnique({ where: { id } });
+    const item = await this.itemRepository.findOne({ where: { id } });
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
   
-    const updateData: Prisma.itemsUpdateInput = {
+    const updateData: any = {
       name: updateItemDto.name,
       description: updateItemDto.description,
       reorder_level: updateItemDto.reorder_level,
@@ -180,84 +136,43 @@ export class ItemsService {
       can_be_sold: updateItemDto.can_be_sold,
       can_be_purchased: updateItemDto.can_be_purchased,
       quantity: updateItemDto.quantity,
-      defaultUom: updateItemDto.defaultUomId ? { connect: { id: updateItemDto.defaultUomId } } : undefined,
-      purchaseUom: updateItemDto.purchaseUomId ? { connect: { id: updateItemDto.purchaseUomId } } : undefined,
-      machine: updateItemDto.machineId ? { connect: { id: updateItemDto.machineId } } : undefined,
-      unitCategory: updateItemDto.unitCategoryId ? { connect: { id: updateItemDto.unitCategoryId } } : undefined, // Connect unitCategory
     };
+
+    if (updateItemDto.defaultUomId) updateData.defaultUomId = updateItemDto.defaultUomId;
+    if (updateItemDto.purchaseUomId) updateData.purchaseUomId = updateItemDto.purchaseUomId;
+    if (updateItemDto.machineId) updateData.machineId = updateItemDto.machineId;
+    if (updateItemDto.unitCategoryId) updateData.unitCategoryId = updateItemDto.unitCategoryId;
   
     try {
-      return await this.prisma.items.update({
-        where: { id },
-        data: updateData,
-        include: {
-          services: true,
-          defaultUom: true,
-          purchaseUom: true,
-          machine: true,
-          unitCategory: true
-        },
-      });
+      await this.itemRepository.update(id, updateData);
+      return this.findOne(id);
     } catch (error) {
-      if (error.code === 'P2002') { // Prisma unique constraint error code
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
-      else if (error.code === 'P2003') {
+      } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
         throw new ConflictException('Foreign key constraint failed.');
-      } else if (error instanceof Prisma.PrismaClientValidationError) {
-        throw new BadRequestException(`Validation error: ${error.message}`);
       } else {
         throw new Error('An unexpected error occurred.');
       }
     }
   }
-  
 
   async remove(id: string) {
-    // Fetch the item and include only the relations that should block deletion
-    const item = await this.prisma.items.findUnique({
-      where: { id },
-      include: {
-        sales: true,
-        purchases: true,
-        OrderItems: true,
-        operatorStock: true,
-        attributes: true,
-        services: true,
-        pricing: true,
-      },
+    const item = await this.itemRepository.findOne({
+      where: { id }
     });
   
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
     }
   
-    // Check if the item has any related sales, purchases, orders, or other blocking relations
-    const hasRelatedEntities = 
-      item.sales.length > 0 || 
-      item.purchases.length > 0 || 
-      item.OrderItems.length > 0 || 
-      item.operatorStock.length > 0 || 
-      item.attributes.length > 0 || 
-      item.services.length > 0 || 
-      item.pricing.length > 0;
-  
-    if (hasRelatedEntities) {
-      throw new BadRequestException('Cannot delete item because it has related entities that prevent deletion.');
-    }
-  
-    // Proceed with deletion if there are no blocking related entities
     try {
-      return await this.prisma.items.delete({
-        where: { id },
-      });
+      return await this.itemRepository.remove(item);
     } catch (error) {
-      if (error.code === 'P2003') { // Foreign key constraint error
+      if (error.code === 'ER_ROW_IS_REFERENCED_2') {
         throw new BadRequestException('Cannot delete item due to existing dependencies. Please remove associated data first.');
       }
-      throw error; // Rethrow other errors
+      throw error;
     }
   }
-  
-  
 }

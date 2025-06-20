@@ -1,123 +1,109 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Sale } from 'src/entities/sale.entity';
+import { Item } from 'src/entities/item.entity';
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    @InjectRepository(Sale)
+    private readonly saleRepository: Repository<Sale>,
+    @InjectRepository(Item)
+    private readonly itemRepository: Repository<Item>,
+  ) {}
+
   async create(createSaleDto: CreateSaleDto) {
-    const { saleItems, ...saledata } = createSaleDto;
+    const { saleItems, ...saleData } = createSaleDto;
 
     try {
-        // Fetch the relevant items from the database
-        for (const item of saleItems) {
-            const relatedItem = await this.prisma.items.findUnique({
-                where: { id: item.itemId },
-                select: { quantity: true, name: true },
-            });
-
-            if (!relatedItem) {
-              throw new NotFoundException(`Item with ID ${item.itemId} not found.`);
-          }
-
-          if (item.status === 'Requested' && relatedItem.quantity < item.unit) {
-            throw new ConflictException(`Requested quantity is more than available quantity for item "${relatedItem.name}"`);
-          }
-        }
-
-        // If all validations pass, proceed with the sale creation
-        const sale = await this.prisma.sales.create({
-            data: {
-                series: saledata.series,
-                operatorId: saledata.operatorId,
-                status: saledata.status,
-                orderDate: new Date(saledata.orderDate),
-                totalQuantity: parseFloat(saledata.totalQuantity.toString()),
-                note: saledata.note,
-                saleItems: {
-                    create: saleItems.map(item => ({
-                        itemId: item.itemId,
-                        uomId: item.uomId,
-                        quantity: item.quantity,
-                        description: item.description,
-                        status: item.status,
-                        unit: parseFloat(item.unit.toString()),
-                        baseUomId: item.baseUomId,
-                    })),
-                },
-            },
+      // Fetch the relevant items from the database
+      for (const item of saleItems) {
+        const relatedItem = await this.itemRepository.findOne({
+          where: { id: item.itemId },
+          select: ['quantity', 'name'],
         });
 
-        return sale;
+        if (!relatedItem) {
+          throw new NotFoundException(`Item with ID ${item.itemId} not found.`);
+        }
+
+        if (item.status === 'Requested' && relatedItem.quantity < item.unit) {
+          throw new ConflictException(`Requested quantity is more than available quantity for item "${relatedItem.name}"`);
+        }
+      }
+
+      // If all validations pass, proceed with the sale creation
+      const sale = this.saleRepository.create({
+        series: saleData.series,
+        operatorId: saleData.operatorId,
+        status: saleData.status,
+        orderDate: new Date(saleData.orderDate),
+        totalQuantity: parseFloat(saleData.totalQuantity.toString()),
+        note: saleData.note,
+        saleItems: saleItems.map(item => ({
+          itemId: item.itemId,
+          uomId: item.uomId,
+          quantity: item.quantity,
+          description: item.description,
+          status: item.status,
+          unit: parseFloat(item.unit.toString()),
+          baseUomId: item.baseUomId,
+        })),
+      });
+
+      return await this.saleRepository.save(sale);
     } catch (error) {
       console.error("Error creating sale:", error);
 
       // Re-throw the ConflictException as is
       if (error instanceof ConflictException || error instanceof NotFoundException) {
-          throw error;
-      }
-
-      // Check if it's a Prisma error
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          console.error('Prisma error details:', error.meta);
-          throw new ConflictException('Database error occurred. Please check your data.');
+        throw error;
       }
 
       // For any other unexpected errors, rethrow the original error
       throw new ConflictException(`An unexpected error occurred: ${error.message}`);
-  }
-}
-
-
-  async findAll(skip: number, take: number) {
-    const [sales, total] = await this.prisma.$transaction([
-      this.prisma.sales.findMany({
-        skip: Number(skip),
-        take: Number(take),
-        orderBy: {
-          createdAt: 'desc'
-        },
-        include: {
-          saleItems: true,
-          operator: true,
-        },
-      }),
-      this.prisma.sales.count()
-    ]);
-    return {
-      sales,
-      total
     }
   }
 
-  async findAllSales() {
-    return this.prisma.sales.findMany({
-      include: {
-        saleItems: true,
-        operator: true,
+  async findAll(skip: number, take: number) {
+    const [sales, total] = await this.saleRepository.findAndCount({
+      skip: Number(skip),
+      take: Number(take),
+      order: {
+        createdAt: 'DESC'
       },
+      relations: ['saleItems', 'operator'],
+    });
+
+    return {
+      sales,
+      total
+    };
+  }
+
+  async findAllSales() {
+    return this.saleRepository.find({
+      relations: ['saleItems', 'operator'],
     });
   }
 
   findOne(id: string) {
-    return this.prisma.sales.findUnique({
+    return this.saleRepository.findOne({
       where: { id },
-      include: {
-        saleItems: true,
-        operator: true,
-      },
+      relations: ['saleItems', 'operator'],
     });
   }
 
   async update(id: string, updateSaleDto: UpdateSaleDto) {
-    const {saleItems, ...saledata } = updateSaleDto;
+    const { saleItems, ...saleData } = updateSaleDto;
 
     // Fetch the existing sale and its items
-    const existingSale = await this.prisma.sales.findUnique({
+    const existingSale = await this.saleRepository.findOne({
       where: { id },
-      include: { saleItems: true },
+      relations: ['saleItems'],
     });
 
     if (!existingSale) {
@@ -132,92 +118,99 @@ export class SalesService {
     const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
 
     try {
-
       // Validate each sale item
       for (const item of saleItems) {
-        const relatedItem = await this.prisma.items.findUnique({
-            where: { id: item.itemId },
-            select: { quantity: true, name: true }, // Fetch quantity and name
+        const relatedItem = await this.itemRepository.findOne({
+          where: { id: item.itemId },
+          select: ['quantity', 'name'],
         });
 
         if (!relatedItem) {
-            throw new NotFoundException(`Item with ID ${item.itemId} not found.`);
+          throw new NotFoundException(`Item with ID ${item.itemId} not found.`);
         }
 
         if (item.status === 'Requested' && relatedItem.quantity < item.unit) {
-            throw new ConflictException(`Requested quantity is more than available quantity for item "${relatedItem.name}"`);
+          throw new ConflictException(`Requested quantity is more than available quantity for item "${relatedItem.name}"`);
         }
-    }
+      }
 
+      // Delete items that are no longer present in the update request
+      if (itemsToDelete.length > 0) {
+        await this.saleRepository
+          .createQueryBuilder()
+          .delete()
+          .from('sale_items')
+          .where('id IN (:...ids)', { ids: itemsToDelete })
+          .execute();
+      }
 
-
-
-      const updatedSale = await this.prisma.sales.update({
-        where: { id },
-        data: {
-          ...saledata,
-          saleItems: {
-            // Delete items that are no longer present in the update request
-            deleteMany: {
-              id: {
-                in: itemsToDelete,
-              },
-            },
-            // Update existing items or create new items as needed
-            upsert: updateSaleDto.saleItems.map(item => ({
-              where: { id: item.id },
-              update: {
-                itemId: item.itemId,
-                uomId: item.uomId,
-                quantity: item.quantity,
-                description: item.description,
-                status: item.status,
-                baseUomId: item.baseUomId,
-                unit: parseFloat(item.unit.toString()),
-              },
-              create: {
-                itemId: item.itemId,
-                uomId: item.uomId,
-                quantity: item.quantity,
-                description: item.description,
-                status: item.status,
-                baseUomId: item.baseUomId,
-                unit: parseFloat(item.unit.toString()),
-              },
-            })),
-          },
-        },
-        include: {
-          saleItems: true,
-          operator: true,
-        },
+      // Update the sale data
+      await this.saleRepository.update(id, {
+        ...saleData,
+        orderDate: saleData.orderDate ? new Date(saleData.orderDate) : undefined,
+        totalQuantity: saleData.totalQuantity ? parseFloat(saleData.totalQuantity.toString()) : undefined,
       });
 
-      return updatedSale;
+      // Update or create sale items
+      for (const item of updateSaleDto.saleItems) {
+        if (item.id) {
+          // Update existing item
+          await this.saleRepository
+            .createQueryBuilder()
+            .update('sale_items')
+            .set({
+              itemId: item.itemId,
+              uomId: item.uomId,
+              quantity: item.quantity,
+              description: item.description,
+              status: item.status,
+              baseUomId: item.baseUomId,
+              unit: parseFloat(item.unit.toString()),
+            })
+            .where('id = :id', { id: item.id })
+            .execute();
+        } else {
+          // Create new item
+          await this.saleRepository
+            .createQueryBuilder()
+            .insert()
+            .into('sale_items')
+            .values({
+              saleId: id,
+              itemId: item.itemId,
+              uomId: item.uomId,
+              quantity: item.quantity,
+              description: item.description,
+              status: item.status,
+              baseUomId: item.baseUomId,
+              unit: parseFloat(item.unit.toString()),
+            })
+            .execute();
+        }
+      }
+
+      // Return the updated sale
+      return await this.saleRepository.findOne({
+        where: { id },
+        relations: ['saleItems', 'operator'],
+      });
     } catch (error) {
       console.error("Error updating sale:", error);
-// Re-throw the ConflictException as is
-if (error instanceof ConflictException || error instanceof NotFoundException) {
-  throw error;
-}
 
-   // Check if it's a Prisma error
-   if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    console.error('Prisma error details:', error.meta);
-    throw new ConflictException('Database error occurred. Please check your data.');
-}
+      // Re-throw the ConflictException as is
+      if (error instanceof ConflictException || error instanceof NotFoundException) {
+        throw error;
+      }
 
-// For any other unexpected errors, rethrow the original error
-throw new ConflictException(`An unexpected error occurred: ${error.message}`);
-}
+      // For any other unexpected errors, rethrow the original error
+      throw new ConflictException(`An unexpected error occurred: ${error.message}`);
+    }
   }
 
   async remove(id: string) {
-    const sale = await this.prisma.sales.findUnique({
+    const sale = await this.saleRepository.findOne({
       where: { id },
-      include: {
-        saleItems: true,
-      },
+      relations: ['saleItems'],
     });
 
     if (!sale) {
@@ -228,9 +221,7 @@ throw new ConflictException(`An unexpected error occurred: ${error.message}`);
       throw new ConflictException('Sale has items and cannot be deleted');
     }
 
-    const deletedSale = await this.prisma.sales.delete({
-      where: { id },
-    });
+    const deletedSale = await this.saleRepository.remove(sale);
 
     return deletedSale;
   }
