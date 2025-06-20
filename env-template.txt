@@ -1,13 +1,11 @@
-# Database Configuration
-# MySQL credentials from Docker setup
-DATABASE_URL="mysql://root:ian_password@localhost:3306/ian_backend"
-POSTGRES_PRISMA_URL="mysql://ian_user:ian_password@localhost:3306/ian_backend"
-POSTGRES_URL_NON_POOLING="mysql://ian_user:ian_password@localhost:3306/ian_backend"
+host=localhost
+port=3306
+app_port=8080
+username=ian_user
+password=ian_password
+database=ian_backend
+synchronize=true
 
-# Application Configuration
-PORT=8080
-NODE_ENV=development
 
-# JWT Configuration (you may need to add these)
-JWT_SECRET=your-super-secret-jwt-key-here
-JWT_RT_SECRET=your-refresh-token-secret-here 
+JWT_SECRET=super-secret-jwt-key-here
+JWT_RT_SECRET=your-refresh-token-secret-here

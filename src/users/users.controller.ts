@@ -29,7 +29,7 @@ export class UsersController {
       cb(null, true);
     },
   }))
-  async create(@UploadedFile() file: Express.Multer.File, @Body() createUserDto: CreateUserDto) {
+  async create(@UploadedFile() file: any, @Body() createUserDto: CreateUserDto) {
     if (file) {
       createUserDto.profile = file.filename; // Save the filename in the DTO
     }
@@ -78,7 +78,7 @@ export class UsersController {
           cb(null, true);
         },
   }))
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @UploadedFile() profile: Express.Multer.File) {
+  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @UploadedFile() profile: any) {
       if (profile) {
           updateUserDto.profile = profile.filename;
       }

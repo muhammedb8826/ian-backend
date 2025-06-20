@@ -21,7 +21,7 @@ export class FileController {
             cb(null, true);
         },
     }))
-    uploadFile(@UploadedFile() file: Express.Multer.File, @Body() body) {
+    uploadFile(@UploadedFile() file: any, @Body() body) {
         if (!file) {
             throw new BadRequestException('File is required');
         }
