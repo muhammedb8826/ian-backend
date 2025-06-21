@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinTable, JoinColumn, ManyToMany } from 'typeorm';
 import { Machine } from './machine.entity';
 import { UOM } from './uom.entity';
 import { UnitCategory } from './unit-category.entity';
@@ -11,7 +11,7 @@ import { SaleItems } from './sale-item.entity';
 import { Discount } from './discount.entity';
 import { Service } from './service.entity';
 
-@Entity()
+@Entity('items')
 export class Item {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -80,17 +80,22 @@ export class Item {
   discounts: Discount[];
 
   @ManyToOne(() => UOM, uom => uom.defaultUom)
+  @JoinColumn({ name: 'defaultUomId' })
   defaultUom: UOM;
 
   @ManyToOne(() => Machine, machine => machine.items)
+  @JoinColumn({ name: 'machineId' })
   machine: Machine;
 
   @ManyToOne(() => UOM, uom => uom.purchaseUom)
+  @JoinColumn({ name: 'purchaseUomId' })
   purchaseUom: UOM;
 
   @ManyToOne(() => UnitCategory, unitCategory => unitCategory.items)
+  @JoinColumn({ name: 'unitCategoryId' })
   unitCategory: UnitCategory;
 
-  @ManyToOne(() => Service, service => service.items)
+  @ManyToMany(() => Service, service => service.items)
+  @JoinTable()
   services: Service[];
 }

@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Commission } from './commission.entity';
 
-@Entity()
+@Entity('commission_transactions')
 export class CommissionTransaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -36,6 +36,7 @@ export class CommissionTransaction {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToOne(() => Commission, commission => commission.transactions)
+  @ManyToOne(() => Commission, commission => commission.transactions, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'commissionId' })
   commission: Commission;
 }

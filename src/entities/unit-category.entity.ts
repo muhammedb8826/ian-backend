@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { UOM } from './uom.entity';
 import { Item } from './item.entity';
 
-@Entity()
+@Entity('unit_category')
 export class UnitCategory {
   @PrimaryGeneratedColumn('uuid')
   id: string;

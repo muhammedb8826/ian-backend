@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
-import { OrderItems } from './order-item.entity';
-import { UOM } from './uom.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany, Unique } from 'typeorm';
 import { Item } from './item.entity';
 import { Service } from './service.entity';
+import { UOM } from './uom.entity';
+import { OrderItems } from './order-item.entity';
 
-@Entity()
+@Entity('pricing')
 @Unique(['itemId', 'serviceId'])
 export class Pricing {
   @PrimaryGeneratedColumn('uuid')
@@ -37,15 +37,18 @@ export class Pricing {
   @Column()
   baseUomId: string;
 
-  @OneToMany(() => OrderItems, orderItems => orderItems.pricing)
-  orderItems: OrderItems[];
-
   @ManyToOne(() => UOM, uom => uom.pricing)
+  @JoinColumn({ name: 'baseUomId' })
   uom: UOM;
 
   @ManyToOne(() => Item, item => item.pricing)
+  @JoinColumn({ name: 'itemId' })
   item: Item;
 
   @ManyToOne(() => Service, service => service.pricing)
+  @JoinColumn({ name: 'serviceId' })
   service: Service;
+
+  @OneToMany(() => OrderItems, orderItems => orderItems.pricing)
+  orderItems: OrderItems[];
 }

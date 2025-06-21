@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Commission } from './commission.entity';
 import { Order } from './order.entity';
 
-@Entity()
+@Entity('sales_partners')
 export class SalesPartner {
   @PrimaryGeneratedColumn('uuid')
   id: string;

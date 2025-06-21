@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany, Unique } from 'typeorm';
 import { UnitCategory } from './unit-category.entity';
 import { OperatorStock } from './operator-stock.entity';
 import { OrderItems } from './order-item.entity';
@@ -7,7 +7,7 @@ import { PurchaseItems } from './purchase-item.entity';
 import { SaleItems } from './sale-item.entity';
 import { Item } from './item.entity';
 
-@Entity()
+@Entity('uom')
 @Unique(['name', 'abbreviation', 'unitCategoryId'])
 export class UOM {
   @PrimaryGeneratedColumn('uuid')
@@ -50,6 +50,7 @@ export class UOM {
   saleItems: SaleItems[];
 
   @ManyToOne(() => UnitCategory, unitCategory => unitCategory.uoms)
+  @JoinColumn({ name: 'unitCategoryId' })
   unitCategory: UnitCategory;
 
   @OneToMany(() => Item, item => item.defaultUom)

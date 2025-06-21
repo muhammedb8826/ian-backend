@@ -1,9 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn, OneToMany, ManyToOne } from 'typeorm';
 import { Order } from './order.entity';
 import { SalesPartner } from './sales-partner.entity';
 import { CommissionTransaction } from './commission-transaction.entity';
 
-@Entity()
+@Entity('commissions')
 export class Commission {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -26,12 +26,14 @@ export class Commission {
   @Column('float')
   paidAmount: number;
 
-  @OneToMany(() => CommissionTransaction, transaction => transaction.commission)
+  @OneToMany(() => CommissionTransaction, transaction => transaction.commission, { onDelete: 'CASCADE' })
   transactions: CommissionTransaction[];
 
-  @ManyToOne(() => Order, order => order.commission)
+  @OneToOne(() => Order, order => order.commission, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'orderId' })
   order: Order;
 
-  @ManyToOne(() => SalesPartner, salesPartner => salesPartner.commissions)
+  @ManyToOne(() => SalesPartner, salesPartner => salesPartner.commissions, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'salesPartnerId' })
   salesPartner: SalesPartner;
 }

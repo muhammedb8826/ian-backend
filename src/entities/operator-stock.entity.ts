@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Item } from './item.entity';
 import { UOM } from './uom.entity';
 
-@Entity()
+@Entity('operator_stock')
 export class OperatorStock {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -35,8 +35,10 @@ export class OperatorStock {
   unit: number;
 
   @ManyToOne(() => Item, item => item.operatorStock)
+  @JoinColumn({ name: 'itemId' })
   item: Item;
 
   @ManyToOne(() => UOM, uom => uom.operatorStock)
+  @JoinColumn({ name: 'uomId' })
   uoms: UOM;
 }

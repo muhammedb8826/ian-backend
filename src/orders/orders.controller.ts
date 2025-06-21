@@ -22,11 +22,10 @@ export class OrdersController {
     @Query('item1') item1?: string,
     @Query('item2') item2?: string,
     @Query('item3') item3?: string,
-    @Query('status') status?: string,
   ) {
     const skip = (page - 1) * limit
     const take = limit
-    return this.ordersService.findAll(skip, take, search, startDate, endDate, item1, item2, item3, status);
+    return this.ordersService.findAll(skip, take, search, startDate, endDate, item1, item2, item3);
   }
 
   @Get('all')

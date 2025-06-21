@@ -74,6 +74,7 @@ export class ItemsService {
       .leftJoinAndSelect('item.defaultUom', 'defaultUom')
       .leftJoinAndSelect('item.purchaseUom', 'purchaseUom')
       .leftJoinAndSelect('item.unitCategory', 'unitCategory')
+      .leftJoinAndSelect('unitCategory.uoms', 'unitCategoryUoms')
       .orderBy('item.createdAt', 'DESC')
       .skip(Number(skip))
       .take(Number(take));
@@ -99,7 +100,9 @@ export class ItemsService {
         machine: true,
         defaultUom: true,
         purchaseUom: true,
-        unitCategory: true
+        unitCategory: {
+          uoms: true
+        }
       }
     });
   }
@@ -111,7 +114,9 @@ export class ItemsService {
         machine: true,
         defaultUom: true,
         purchaseUom: true,
-        unitCategory: true
+        unitCategory: {
+          uoms: true
+        }
       }
     });
     

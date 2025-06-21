@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { PaymentTerm } from './payment-term.entity';
 
-@Entity()
+@Entity('payment_transactions')
 export class PaymentTransaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -33,6 +33,7 @@ export class PaymentTransaction {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToOne(() => PaymentTerm, paymentTerm => paymentTerm.transactions)
+  @ManyToOne(() => PaymentTerm, paymentTerm => paymentTerm.transactions, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'paymentTermId' })
   paymentTerm: PaymentTerm;
 }

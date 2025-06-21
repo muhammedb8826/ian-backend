@@ -1,9 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn, ManyToMany, JoinTable } from 'typeorm';
 import { Pricing } from './pricing.entity';
 import { OrderItems } from './order-item.entity';
 import { Item } from './item.entity';
 
-@Entity()
+@Entity('services')
 export class Service {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -26,7 +26,8 @@ export class Service {
   @OneToMany(() => Pricing, pricing => pricing.service)
   pricing: Pricing[];
 
-  @OneToMany(() => Item, item => item.services)
+  @ManyToMany(() => Item, item => item.services)
+  @JoinTable()
   items: Item[];
 
   @OneToMany(() => OrderItems, orderItems => orderItems.service)

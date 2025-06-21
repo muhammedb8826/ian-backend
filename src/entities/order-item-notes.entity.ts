@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { OrderItems } from './order-item.entity';
 import { User } from './user.entity';
 
-@Entity()
+@Entity('order_item_notes')
 export class OrderItemNotes {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -25,9 +25,11 @@ export class OrderItemNotes {
   @CreateDateColumn()
   createdAt: Date;
 
-  @ManyToOne(() => OrderItems, orderItems => orderItems.orderItemNotes)
+  @ManyToOne(() => OrderItems, orderItem => orderItem.orderItemNotes)
+  @JoinColumn({ name: 'orderItemId' })
   orderItem: OrderItems;
 
   @ManyToOne(() => User, user => user.orderItemNotes)
+  @JoinColumn({ name: 'userId' })
   user: User;
 }

@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Item } from './item.entity';
 
-@Entity()
+@Entity('discounts')
 @Unique(['itemId', 'level'])
 export class Discount {
   @PrimaryGeneratedColumn('uuid')
@@ -29,5 +29,6 @@ export class Discount {
   description: string;
 
   @ManyToOne(() => Item, item => item.discounts)
+  @JoinColumn({ name: 'itemId' })
   item: Item;
 }

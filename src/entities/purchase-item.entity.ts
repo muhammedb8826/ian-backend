@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany, Unique } from 'typeorm';
 import { Item } from './item.entity';
 import { Purchase } from './purchase.entity';
 import { UOM } from './uom.entity';
 import { PurchaseItemNote } from './purchase-item-note.entity';
 
-@Entity()
+@Entity('purchase_items')
 @Unique(['purchaseId', 'itemId'])
 export class PurchaseItems {
   @PrimaryGeneratedColumn('uuid')
@@ -50,11 +50,14 @@ export class PurchaseItems {
   purchaseItemNotes: PurchaseItemNote[];
 
   @ManyToOne(() => Item, item => item.purchases)
+  @JoinColumn({ name: 'itemId' })
   item: Item;
 
   @ManyToOne(() => Purchase, purchase => purchase.purchaseItems)
+  @JoinColumn({ name: 'purchaseId' })
   purchase: Purchase;
 
   @ManyToOne(() => UOM, uom => uom.purchaseItems)
+  @JoinColumn({ name: 'uomId' })
   uoms: UOM;
 }

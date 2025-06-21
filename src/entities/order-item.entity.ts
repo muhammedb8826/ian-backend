@@ -1,12 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
-import { Order } from './order.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany, Unique } from 'typeorm';
 import { Item } from './item.entity';
-import { Service } from './service.entity';
+import { Order } from './order.entity';
 import { Pricing } from './pricing.entity';
 import { UOM } from './uom.entity';
+import { Service } from './service.entity';
 import { OrderItemNotes } from './order-item-notes.entity';
 
-@Entity()
+@Entity('order_items')
 @Unique(['orderId', 'itemId', 'serviceId'])
 export class OrderItems {
   @PrimaryGeneratedColumn('uuid')
@@ -76,17 +76,22 @@ export class OrderItems {
   orderItemNotes: OrderItemNotes[];
 
   @ManyToOne(() => Item, item => item.OrderItems)
+  @JoinColumn({ name: 'itemId' })
   item: Item;
 
   @ManyToOne(() => Order, order => order.orderItems)
+  @JoinColumn({ name: 'orderId' })
   order: Order;
 
   @ManyToOne(() => Pricing, pricing => pricing.orderItems)
+  @JoinColumn({ name: 'pricingId' })
   pricing: Pricing;
 
   @ManyToOne(() => UOM, uom => uom.orderItems)
+  @JoinColumn({ name: 'uomId' })
   uom: UOM;
 
   @ManyToOne(() => Service, service => service.orderItems)
+  @JoinColumn({ name: 'serviceId' })
   service: Service;
 }

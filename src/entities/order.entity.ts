@@ -1,11 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Customer } from './customer.entity';
 import { SalesPartner } from './sales-partner.entity';
-import { OrderItems } from './order-item.entity';
-import { Commission } from './commission.entity';
 import { PaymentTerm } from './payment-term.entity';
+import { Commission } from './commission.entity';
+import { OrderItems } from './order-item.entity';
 
-@Entity()
+@Entity('orders')
 export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -19,7 +19,7 @@ export class Order {
   @Column()
   status: string;
 
-  @Column({ default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn()
   orderDate: Date;
 
   @Column()
@@ -67,15 +67,17 @@ export class Order {
   @OneToMany(() => OrderItems, orderItems => orderItems.order)
   orderItems: OrderItems[];
 
-  @ManyToOne(() => Commission, commission => commission.order)
-  commission: Commission;
+  @OneToMany(() => Commission, commission => commission.order)
+  commission: Commission[];
 
   @ManyToOne(() => Customer, customer => customer.orders)
+  @JoinColumn({ name: 'customerId' })
   customer: Customer;
 
   @ManyToOne(() => SalesPartner, salesPartner => salesPartner.orders)
+  @JoinColumn({ name: 'salesPartnersId' })
   salesPartner: SalesPartner;
 
-  @ManyToOne(() => PaymentTerm, paymentTerm => paymentTerm.order)
-  paymentTerm: PaymentTerm;
+  @OneToMany(() => PaymentTerm, paymentTerm => paymentTerm.order)
+  paymentTerm: PaymentTerm[];
 }

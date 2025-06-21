@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { User } from './user.entity';
 import { SaleItems } from './sale-item.entity';
 
-@Entity()
+@Entity('sales')
 export class Sale {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -16,7 +16,7 @@ export class Sale {
   @Column()
   status: string;
 
-  @Column({ default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn()
   orderDate: Date;
 
   @Column({ nullable: true })
@@ -35,5 +35,6 @@ export class Sale {
   saleItems: SaleItems[];
 
   @ManyToOne(() => User, user => user.operator)
+  @JoinColumn({ name: 'operatorId' })
   operator: User;
 }

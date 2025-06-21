@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Item } from './item.entity';
 import { Sale } from './sale.entity';
 import { UOM } from './uom.entity';
 import { SalesItemNote } from './sales-item-note.entity';
 
-@Entity()
+@Entity('sale_items')
 export class SaleItems {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -40,12 +40,15 @@ export class SaleItems {
   unit: number;
 
   @ManyToOne(() => Item, item => item.sales)
+  @JoinColumn({ name: 'itemId' })
   item: Item;
 
   @ManyToOne(() => Sale, sale => sale.saleItems)
+  @JoinColumn({ name: 'saleId' })
   sale: Sale;
 
   @ManyToOne(() => UOM, uom => uom.saleItems)
+  @JoinColumn({ name: 'uomId' })
   uoms: UOM;
 
   @OneToMany(() => SalesItemNote, salesItemNote => salesItemNote.saleItem)
