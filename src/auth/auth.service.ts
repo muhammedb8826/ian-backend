@@ -59,15 +59,13 @@ export class AuthService {
     }
 
     async logout(userId: string) {
-        await this.userRepository.update(
-            {
-                id: userId,
-                passwordRT: { not: null } as any
-            },
-            {
-                passwordRT: null
-            }
-        );
+        await this.userRepository
+            .createQueryBuilder()
+            .update(User)
+            .set({ passwordRT: null })
+            .where('id = :userId', { userId })
+            .andWhere('passwordRT IS NOT NULL')
+            .execute();
     }
 
     async refreshTokens(userId: string, rt: string) {
