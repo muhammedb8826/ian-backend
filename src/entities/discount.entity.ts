@@ -30,5 +30,5 @@ export class Discount {
 
   @ManyToOne(() => Item, item => item.discounts)
   @JoinColumn({ name: 'itemId' })
-  item: Item;
+  items: Item;
 }

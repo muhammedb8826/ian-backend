@@ -53,41 +53,41 @@ export class OrdersService {
         series: createOrderDto.series,
         customerId: createOrderDto.customerId,
         status: createOrderDto.status,
-        orderDate: new Date(createOrderDto.orderDate),
-        deliveryDate: new Date(createOrderDto.deliveryDate),
+        orderDate: createOrderDto.orderDate ? new Date(createOrderDto.orderDate) : new Date(),
+        deliveryDate: createOrderDto.deliveryDate ? new Date(createOrderDto.deliveryDate) : new Date(),
         orderSource: createOrderDto.orderSource,
-        totalAmount: parseFloat(createOrderDto.totalAmount.toString()),
-        tax: parseFloat(createOrderDto.tax.toString()),
-        grandTotal: parseFloat(createOrderDto.grandTotal.toString()),
-        totalQuantity: parseFloat(createOrderDto.totalQuantity.toString()),
+        totalAmount: parseFloat((createOrderDto.totalAmount || 0).toString()),
+        tax: parseFloat((createOrderDto.tax || 0).toString()),
+        grandTotal: parseFloat((createOrderDto.grandTotal || 0).toString()),
+        totalQuantity: parseFloat((createOrderDto.totalQuantity || 0).toString()),
         internalNote: createOrderDto.internalNote,
-        fileNames: createOrderDto.fileNames,
-        adminApproval: createOrderDto.adminApproval,
+        fileNames: createOrderDto.fileNames || [],
+        adminApproval: createOrderDto.adminApproval || false,
         salesPartnersId: createOrderDto.salesPartner?.id,
       });
 
       const savedOrder = await queryRunner.manager.save(Order, order);
 
       // Create order items
-      const orderItems = createOrderDto.orderItems.map(item => 
+      const orderItems = createOrderDto.orderItems.map(item =>
         this.orderItemsRepository.create({
           orderId: savedOrder.id,
           itemId: item.itemId,
           serviceId: item.serviceId,
-          width: parseFloat(item.width?.toString()) || null,
-          height: parseFloat(item.height?.toString()) || null,
-          discount: parseFloat(item.discount?.toString()) || 0,
-          level: parseFloat(item.level?.toString()),
-          totalAmount: parseFloat(item.totalAmount.toString()),
-          adminApproval: item.adminApproval,
+          width: item.width ? parseFloat(item.width.toString()) : null,
+          height: item.height ? parseFloat(item.height.toString()) : null,
+          discount: parseFloat((item.discount || 0).toString()),
+          level: parseFloat((item.level || 0).toString()),
+          totalAmount: parseFloat((item.totalAmount || 0).toString()),
+          adminApproval: item.adminApproval || false,
           uomId: item.uomId,
-          quantity: parseFloat(item.quantity.toString()),
-          unitPrice: parseFloat(item.unitPrice.toString()),
+          quantity: parseFloat((item.quantity || 0).toString()),
+          unitPrice: parseFloat((item.unitPrice || 0).toString()),
           description: item.description,
-          isDiscounted: item.isDiscounted,
+          isDiscounted: item.isDiscounted || false,
           status: item.status,
           pricingId: item.pricingId,
-          unit: parseFloat(item.unit.toString()),
+          unit: parseFloat((item.unit || 0).toString()),
           baseUomId: item.baseUomId,
         })
       );
@@ -98,10 +98,10 @@ export class OrdersService {
       if (createOrderDto.paymentTerm) {
         const paymentTerm = this.paymentTermRepository.create({
           orderId: savedOrder.id,
-          totalAmount: parseFloat(createOrderDto.paymentTerm.totalAmount.toString()),
-          remainingAmount: parseFloat(createOrderDto.paymentTerm.remainingAmount.toString()),
-          status: this.getPaymentTermStatus(createOrderDto.paymentTerm.remainingAmount, createOrderDto.grandTotal),
-          forcePayment: createOrderDto.paymentTerm.forcePayment,
+          totalAmount: parseFloat((createOrderDto.paymentTerm.totalAmount || 0).toString()),
+          remainingAmount: parseFloat((createOrderDto.paymentTerm.remainingAmount || 0).toString()),
+          status: this.getPaymentTermStatus(createOrderDto.paymentTerm.remainingAmount || 0, createOrderDto.grandTotal),
+          forcePayment: createOrderDto.paymentTerm.forcePayment || false,
         });
 
         const savedPaymentTerm = await queryRunner.manager.save(PaymentTerm, paymentTerm);
@@ -111,10 +111,10 @@ export class OrdersService {
           const paymentTransactions = createOrderDto.paymentTerm.transactions.map(transaction =>
             this.paymentTransactionRepository.create({
               paymentTermId: savedPaymentTerm.id,
-              date: new Date(transaction.date),
+              date: transaction.date ? new Date(transaction.date) : new Date(),
               paymentMethod: transaction.paymentMethod,
               reference: transaction.reference,
-              amount: parseFloat(transaction.amount.toString()),
+              amount: parseFloat((transaction.amount || 0).toString()),
               status: transaction.status,
               description: transaction.description,
             })
@@ -129,8 +129,8 @@ export class OrdersService {
         const commission = this.commissionRepository.create({
           orderId: savedOrder.id,
           salesPartnerId: createOrderDto.commission.salesPartnerId,
-          totalAmount: parseFloat(createOrderDto.commission.totalAmount.toString()),
-          paidAmount: parseFloat(createOrderDto.commission.paidAmount.toString()),
+          totalAmount: parseFloat((createOrderDto.commission.totalAmount || 0).toString()),
+          paidAmount: parseFloat((createOrderDto.commission.paidAmount || 0).toString()),
         });
 
         const savedCommission = await queryRunner.manager.save(Commission, commission);
@@ -140,9 +140,9 @@ export class OrdersService {
           const commissionTransactions = createOrderDto.commission.transactions.map(transaction =>
             this.commissionTransactionRepository.create({
               commissionId: savedCommission.id,
-              date: new Date(transaction.date),
-              amount: parseFloat(transaction.amount.toString()),
-              percentage: parseFloat(transaction.percentage.toString()),
+              date: transaction.date ? new Date(transaction.date) : new Date(),
+              amount: parseFloat((transaction.amount || 0).toString()),
+              percentage: parseFloat((transaction.percentage || 0).toString()),
               paymentMethod: transaction.paymentMethod,
               reference: transaction.reference,
               status: transaction.status,
@@ -392,16 +392,16 @@ export class OrdersService {
         series: orderData.series,
         customerId: orderData.customerId,
         status: orderData.status,
-        orderDate: new Date(orderData.orderDate),
-        deliveryDate: new Date(orderData.deliveryDate),
+        orderDate: orderData.orderDate ? new Date(orderData.orderDate) : new Date(),
+        deliveryDate: orderData.deliveryDate ? new Date(orderData.deliveryDate) : new Date(),
         orderSource: orderData.orderSource,
-        totalAmount: parseFloat(orderData.totalAmount.toString()),
-        tax: parseFloat(orderData.tax.toString()),
-        grandTotal: parseFloat(orderData.grandTotal.toString()),
-        totalQuantity: parseFloat(orderData.totalQuantity.toString()),
+        totalAmount: parseFloat((orderData.totalAmount || 0).toString()),
+        tax: parseFloat((orderData.tax || 0).toString()),
+        grandTotal: parseFloat((orderData.grandTotal || 0).toString()),
+        totalQuantity: parseFloat((orderData.totalQuantity || 0).toString()),
         internalNote: orderData.internalNote,
-        fileNames: orderData.fileNames,
-        adminApproval: orderData.adminApproval,
+        fileNames: orderData.fileNames || [],
+        adminApproval: orderData.adminApproval || false,
         salesPartnersId: salesPartner?.id,
       });
 
@@ -419,18 +419,18 @@ export class OrdersService {
             serviceId: item.serviceId,
             width: item.width !== null ? parseFloat(item.width.toString()) : null,
             height: item.height !== null ? parseFloat(item.height.toString()) : null,
-            discount: item.discount !== null ? parseFloat(item.discount.toString()) : 0,
-            level: parseFloat(item.level.toString()),
-            totalAmount: parseFloat(item.totalAmount.toString()),
-            adminApproval: item.adminApproval,
+            discount: parseFloat((item.discount || 0).toString()),
+            level: parseFloat((item.level || 0).toString()),
+            totalAmount: parseFloat((item.totalAmount || 0).toString()),
+            adminApproval: item.adminApproval || false,
             uomId: item.uomId,
-            quantity: parseFloat(item.quantity.toString()),
-            unitPrice: parseFloat(item.unitPrice.toString()),
+            quantity: parseFloat((item.quantity || 0).toString()),
+            unitPrice: parseFloat((item.unitPrice || 0).toString()),
             description: item.description,
-            isDiscounted: item.isDiscounted,
+            isDiscounted: item.isDiscounted || false,
             status: item.status,
             pricingId: item.pricingId,
-            unit: parseFloat(item.unit.toString()),
+            unit: parseFloat((item.unit || 0).toString()),
             baseUomId: item.baseUomId,
           });
         } else {
@@ -441,18 +441,18 @@ export class OrdersService {
             serviceId: item.serviceId,
             width: item.width !== null ? parseFloat(item.width.toString()) : null,
             height: item.height !== null ? parseFloat(item.height.toString()) : null,
-            discount: item.discount !== null ? parseFloat(item.discount.toString()) : 0,
-            level: parseFloat(item.level.toString()),
-            totalAmount: parseFloat(item.totalAmount.toString()),
-            adminApproval: item.adminApproval,
+            discount: parseFloat((item.discount || 0).toString()),
+            level: parseFloat((item.level || 0).toString()),
+            totalAmount: parseFloat((item.totalAmount || 0).toString()),
+            adminApproval: item.adminApproval || false,
             uomId: item.uomId,
-            quantity: parseFloat(item.quantity.toString()),
-            unitPrice: parseFloat(item.unitPrice.toString()),
+            quantity: parseFloat((item.quantity || 0).toString()),
+            unitPrice: parseFloat((item.unitPrice || 0).toString()),
             description: item.description,
-            isDiscounted: item.isDiscounted,
+            isDiscounted: item.isDiscounted || false,
             status: item.status,
             pricingId: item.pricingId,
-            unit: parseFloat(item.unit.toString()),
+            unit: parseFloat((item.unit || 0).toString()),
             baseUomId: item.baseUomId,
           });
         }
@@ -469,10 +469,10 @@ export class OrdersService {
         // Create new payment term
         const newPaymentTerm = await queryRunner.manager.save(PaymentTerm, {
           orderId: id,
-          totalAmount: parseFloat(paymentTerm.totalAmount.toString()),
-          remainingAmount: parseFloat(paymentTerm.remainingAmount.toString()),
-          status: this.getPaymentTermStatus(paymentTerm.remainingAmount, orderData.grandTotal),
-          forcePayment: paymentTerm.forcePayment,
+          totalAmount: parseFloat((paymentTerm.totalAmount || 0).toString()),
+          remainingAmount: parseFloat((paymentTerm.remainingAmount || 0).toString()),
+          status: this.getPaymentTermStatus(paymentTerm.remainingAmount || 0, orderData.grandTotal || 0),
+          forcePayment: paymentTerm.forcePayment || false,
         });
 
         // Create payment transactions
@@ -480,10 +480,10 @@ export class OrdersService {
           const paymentTransactions = paymentTerm.transactions.map(transaction =>
             this.paymentTransactionRepository.create({
               paymentTermId: newPaymentTerm.id,
-              date: new Date(transaction.date),
+              date: transaction.date ? new Date(transaction.date) : new Date(),
               paymentMethod: transaction.paymentMethod,
               reference: transaction.reference,
-              amount: parseFloat(transaction.amount.toString()),
+              amount: parseFloat((transaction.amount || 0).toString()),
               status: transaction.status ? 'Paid' : 'Pending',
               description: transaction.description,
             })
@@ -505,8 +505,8 @@ export class OrdersService {
         const newCommission = await queryRunner.manager.save(Commission, {
           orderId: id,
           salesPartnerId: commission.salesPartnerId,
-          totalAmount: parseFloat(commission.totalAmount.toString()),
-          paidAmount: parseFloat(commission.paidAmount.toString()),
+          totalAmount: parseFloat((commission.totalAmount || 0).toString()),
+          paidAmount: parseFloat((commission.paidAmount || 0).toString()),
         });
 
         // Create commission transactions
@@ -514,9 +514,9 @@ export class OrdersService {
           const commissionTransactions = commission.transactions.map(transaction =>
             this.commissionTransactionRepository.create({
               commissionId: newCommission.id,
-              date: new Date(transaction.date),
-              amount: parseFloat(transaction.amount.toString()),
-              percentage: parseFloat(transaction.percentage.toString()),
+              date: transaction.date ? new Date(transaction.date) : new Date(),
+              amount: parseFloat((transaction.amount || 0).toString()),
+              percentage: parseFloat((transaction.percentage || 0).toString()),
               paymentMethod: transaction.paymentMethod,
               reference: transaction.reference,
               status: transaction.status,

@@ -44,21 +44,21 @@ export class DiscountsService {
       skip: +skip,
       take: +take,
       order: { createdAt: 'DESC' },
-      relations: { item: true }
+      relations: { items: true }
     });
     return { discounts, total };
   }
 
   async findAllDiscounts() {
     return await this.discountRepository.find({
-      relations: { item: true }
+      relations: { items: true }
     });
   }
 
   async findOne(id: string) {
     const discount = await this.discountRepository.findOne({
       where: { id },
-      relations: { item: true }
+      relations: { items: true }
     });
 
     if (!discount) {

@@ -76,7 +76,7 @@ export class Item {
   @OneToMany(() => SaleItems, saleItems => saleItems.item)
   sales: SaleItems[];
 
-  @OneToMany(() => Discount, discount => discount.item)
+  @OneToMany(() => Discount, discount => discount.items)
   discounts: Discount[];
 
   @ManyToOne(() => UOM, uom => uom.defaultUom)
