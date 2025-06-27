@@ -200,6 +200,7 @@ export class OrdersService {
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.customer', 'customer')
       .leftJoinAndSelect('order.orderItems', 'orderItems')
+      .leftJoinAndSelect('orderItems.item', 'orderItemsItem')
       .leftJoinAndSelect('orderItems.pricing', 'orderItemsPricing')
       .leftJoinAndSelect('order.paymentTerm', 'paymentTerm')
       .leftJoinAndSelect('paymentTerm.transactions', 'paymentTransactions')
@@ -232,7 +233,7 @@ export class OrdersService {
     // Handle order item names filter
     if (orderItemNames.length > 0) {
       const itemConditions = orderItemNames.map((name, index) => 
-        `orderItems.item.name LIKE :item${index}`
+        `orderItemsItem.name LIKE :item${index}`
       ).join(' OR ');
       
       queryBuilder.andWhere(`(${itemConditions})`);
@@ -247,6 +248,15 @@ export class OrdersService {
     // Calculate grand total sum using a separate query for better performance
     const grandTotalQuery = this.orderRepository
       .createQueryBuilder('order')
+      .leftJoin('order.customer', 'customer')
+      .leftJoin('order.orderItems', 'orderItems')
+      .leftJoin('orderItems.item', 'orderItemsItem')
+      .leftJoin('orderItems.pricing', 'orderItemsPricing')
+      .leftJoin('order.paymentTerm', 'paymentTerm')
+      .leftJoin('paymentTerm.transactions', 'paymentTransactions')
+      .leftJoin('order.commission', 'commission')
+      .leftJoin('commission.transactions', 'commissionTransactions')
+      .leftJoin('order.salesPartner', 'salesPartner')
       .select('SUM(order.grandTotal)', 'grandTotalSum');
 
     // Apply the same filters to the sum query
@@ -266,7 +276,7 @@ export class OrdersService {
 
     if (orderItemNames.length > 0) {
       const itemConditions = orderItemNames.map((name, index) => 
-        `orderItems.item.name LIKE :item${index}`
+        `orderItemsItem.name LIKE :item${index}`
       ).join(' OR ');
       
       grandTotalQuery.andWhere(`(${itemConditions})`);
