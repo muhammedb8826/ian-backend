@@ -9,5 +9,6 @@ import { OperatorStock } from 'src/entities/operator-stock.entity';
   imports: [TypeOrmModule.forFeature([OperatorStock])],
   controllers: [OperatorStockController],
   providers: [OperatorStockService],
+  exports: [OperatorStockService],
 })
 export class OperatorStockModule {}

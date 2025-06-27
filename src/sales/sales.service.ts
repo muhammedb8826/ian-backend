@@ -35,7 +35,7 @@ export class SalesService {
         }
       }
 
-      // If all validations pass, proceed with the sale creation
+      // Create the sale first
       const sale = this.saleRepository.create({
         series: saleData.series,
         operatorId: saleData.operatorId,
@@ -43,18 +43,35 @@ export class SalesService {
         orderDate: new Date(saleData.orderDate),
         totalQuantity: parseFloat(saleData.totalQuantity.toString()),
         note: saleData.note,
-        saleItems: saleItems.map(item => ({
-          itemId: item.itemId,
-          uomId: item.uomId,
-          quantity: item.quantity,
-          description: item.description,
-          status: item.status,
-          unit: parseFloat(item.unit.toString()),
-          baseUomId: item.baseUomId,
-        })),
       });
 
-      return await this.saleRepository.save(sale);
+      const savedSale = await this.saleRepository.save(sale);
+
+      // Create sale items separately
+      const saleItemsToCreate = saleItems.map(item => ({
+        saleId: savedSale.id,
+        itemId: item.itemId,
+        uomId: item.uomId,
+        quantity: item.quantity,
+        description: item.description,
+        status: item.status,
+        unit: parseFloat(item.unit.toString()),
+        baseUomId: item.baseUomId,
+      }));
+
+      // Insert sale items
+      await this.saleRepository
+        .createQueryBuilder()
+        .insert()
+        .into('sale_items')
+        .values(saleItemsToCreate)
+        .execute();
+
+      // Return the complete sale with items
+      return await this.saleRepository.findOne({
+        where: { id: savedSale.id },
+        relations: ['saleItems', 'operator'],
+      });
     } catch (error) {
       console.error("Error creating sale:", error);
 

@@ -10,6 +10,7 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { PaymentTransaction } from 'src/entities/payment-transaction.entity';
 import { Commission } from 'src/entities/commission.entity';
 import { CommissionTransaction } from 'src/entities/commission-transaction.entity';
+import { OperatorStockService } from 'src/operator-stock/operator-stock.service';
 
 @Injectable()
 export class OrdersService {
@@ -29,6 +30,7 @@ export class OrdersService {
     @InjectRepository(CommissionTransaction)
     private readonly commissionTransactionRepository: Repository<CommissionTransaction>,
     private readonly dataSource: DataSource,
+    private readonly operatorStockService: OperatorStockService,
   ) {}
 
   async create(createOrderDto: CreateOrderDto) {
@@ -93,6 +95,15 @@ export class OrdersService {
       );
 
       await queryRunner.manager.save(OrderItems, orderItems);
+
+      // Reduce operator stock for ordered items
+      try {
+        await this.operatorStockService.reduceStockForOrder(orderItems);
+      } catch (error) {
+        // If stock reduction fails, rollback the transaction
+        await queryRunner.rollbackTransaction();
+        throw new BadRequestException(`Stock reduction failed: ${error.message}`);
+      }
 
       // Create payment term if provided
       if (createOrderDto.paymentTerm) {
@@ -407,6 +418,20 @@ export class OrdersService {
 
       // Delete order items that are no longer present
       if (orderItemsToDelete.length > 0) {
+        // Restore stock for deleted items
+        const deletedItems = existingOrder.orderItems.filter(item => 
+          orderItemsToDelete.includes(item.id)
+        );
+        
+        if (deletedItems.length > 0) {
+          try {
+            await this.operatorStockService.restoreStockForOrder(deletedItems);
+          } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw new BadRequestException(`Stock restoration failed: ${error.message}`);
+          }
+        }
+        
         await queryRunner.manager.delete(OrderItems, { id: In(orderItemsToDelete) });
       }
 
@@ -455,6 +480,14 @@ export class OrdersService {
             unit: parseFloat((item.unit || 0).toString()),
             baseUomId: item.baseUomId,
           });
+
+          // Reduce stock for new item
+          try {
+            await this.operatorStockService.reduceStockForOrder([item]);
+          } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw new BadRequestException(`Stock reduction failed for new item: ${error.message}`);
+          }
         }
       }
 

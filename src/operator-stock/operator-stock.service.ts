@@ -16,7 +16,13 @@ export class OperatorStockService {
   async create(createOperatorStockDto: CreateOperatorStockDto) {
     // Create a new operator stock record
     const newOperatorStock = this.operatorStockRepository.create(createOperatorStockDto);
-    return await this.operatorStockRepository.save(newOperatorStock);
+    const savedOperatorStock = await this.operatorStockRepository.save(newOperatorStock);
+    
+    // Return the created entity with relations
+    return await this.operatorStockRepository.findOne({
+      where: { id: savedOperatorStock.id },
+      relations: ['item', 'uoms'],
+    });
   }
 
   async findAll(skip: number, take: number, search?: string) {
@@ -64,6 +70,7 @@ export class OperatorStockService {
     // Update the operator stock record
     await this.operatorStockRepository.update(id, updateOperatorStockDto);
     
+    // Return the updated entity with relations
     return await this.operatorStockRepository.findOne({
       where: { id },
       relations: ['item', 'uoms'],
@@ -84,5 +91,99 @@ export class OperatorStockService {
     await this.operatorStockRepository.remove(operatorStock);
 
     return { message: `Operator Stock with ID ${id} removed successfully` };
+  }
+
+  async reduceStockForOrder(orderItems: any[]) {
+    const stockUpdates = [];
+    
+    for (const orderItem of orderItems) {
+      // Find the operator stock for this item
+      const operatorStock = await this.operatorStockRepository.findOne({
+        where: { itemId: orderItem.itemId },
+        relations: ['item'],
+      });
+
+      if (!operatorStock) {
+        throw new NotFoundException(`No operator stock found for item: ${orderItem.itemId}`);
+      }
+
+      // Calculate the quantity to reduce (convert to base unit if needed)
+      const quantityToReduce = orderItem.quantity * (orderItem.unit || 1);
+      
+      // Check if there's enough stock
+      if (operatorStock.quantity < quantityToReduce) {
+        throw new NotFoundException(
+          `Insufficient stock for item: ${operatorStock.item.name}. Available: ${operatorStock.quantity}, Required: ${quantityToReduce}`
+        );
+      }
+
+      // Reduce the stock
+      const newQuantity = operatorStock.quantity - quantityToReduce;
+      
+      stockUpdates.push({
+        id: operatorStock.id,
+        quantity: newQuantity,
+        description: `Stock reduced by ${quantityToReduce} due to order placement`,
+        status: newQuantity === 0 ? 'Out of Stock' : 'Available'
+      });
+    }
+
+    // Update all stock records
+    for (const update of stockUpdates) {
+      await this.operatorStockRepository.update(update.id, {
+        quantity: update.quantity,
+        description: update.description,
+        status: update.status
+      });
+    }
+
+    return stockUpdates;
+  }
+
+  async findStockByItemId(itemId: string) {
+    return await this.operatorStockRepository.findOne({
+      where: { itemId },
+      relations: ['item', 'uoms'],
+    });
+  }
+
+  async restoreStockForOrder(orderItems: any[]) {
+    const stockUpdates = [];
+    
+    for (const orderItem of orderItems) {
+      // Find the operator stock for this item
+      const operatorStock = await this.operatorStockRepository.findOne({
+        where: { itemId: orderItem.itemId },
+        relations: ['item'],
+      });
+
+      if (!operatorStock) {
+        throw new NotFoundException(`No operator stock found for item: ${orderItem.itemId}`);
+      }
+
+      // Calculate the quantity to restore (convert to base unit if needed)
+      const quantityToRestore = orderItem.quantity * (orderItem.unit || 1);
+      
+      // Restore the stock
+      const newQuantity = operatorStock.quantity + quantityToRestore;
+      
+      stockUpdates.push({
+        id: operatorStock.id,
+        quantity: newQuantity,
+        description: `Stock restored by ${quantityToRestore} due to order cancellation/update`,
+        status: 'Available'
+      });
+    }
+
+    // Update all stock records
+    for (const update of stockUpdates) {
+      await this.operatorStockRepository.update(update.id, {
+        quantity: update.quantity,
+        description: update.description,
+        status: update.status
+      });
+    }
+
+    return stockUpdates;
   }
 }

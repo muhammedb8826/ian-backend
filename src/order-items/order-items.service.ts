@@ -1,74 +1,46 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
 import { OrderItems } from 'src/entities/order-item.entity';
 import { Order } from 'src/entities/order.entity';
+import { OperatorStock } from 'src/entities/operator-stock.entity';
+import { PaymentTerm } from 'src/entities/payment-term.entity';
 
 @Injectable()
 export class OrderItemsService {
   constructor(
     @InjectRepository(OrderItems)
-    private readonly orderItemRepository: Repository<OrderItems>,
+    private readonly orderItemsRepository: Repository<OrderItems>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(OperatorStock)
+    private readonly operatorStockRepository: Repository<OperatorStock>,
+    @InjectRepository(PaymentTerm)
+    private readonly paymentTermRepository: Repository<PaymentTerm>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createOrderItemDto: CreateOrderItemDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
       // Create the order item
-      const orderItem = this.orderItemRepository.create({
-        orderId: createOrderItemDto.orderId,
-        itemId: createOrderItemDto.itemId,
-        quantity: parseFloat(createOrderItemDto.quantity.toString()),
-        serviceId: createOrderItemDto.serviceId,
-        width: parseFloat(createOrderItemDto.width.toString()),
-        height: parseFloat(createOrderItemDto.height.toString()),
-        discount: createOrderItemDto.discount,
-        level: createOrderItemDto.level,
-        totalAmount: parseFloat(createOrderItemDto.totalAmount.toString()),
-        adminApproval: createOrderItemDto.adminApproval,
-        uomId: createOrderItemDto.uomId,
-        unitPrice: parseFloat(createOrderItemDto.unitPrice.toString()),
-        description: createOrderItemDto.description,
-        isDiscounted: createOrderItemDto.isDiscounted,
-        status: createOrderItemDto.status,
-        pricingId: createOrderItemDto.pricingId,
-        unit: parseFloat(createOrderItemDto.unit.toString()),
-        baseUomId: createOrderItemDto.baseUomId,
-      });
+      const orderItemData = { ...createOrderItemDto } as any;
+      delete orderItemData.orderItemNotes;
+      const orderItem = this.orderItemsRepository.create(orderItemData);
+      const createdOrderItem = await queryRunner.manager.save(OrderItems, orderItem);
 
-      const createdOrderItem = await this.orderItemRepository.save(orderItem);
+      // Update order status based on all order items
+      await this.updateOrderStatus(createOrderItemDto.orderId, queryRunner);
 
-      // After creating the order item, fetch all related order items
-      const orderItems = await this.orderItemRepository.find({
-        where: { orderId: createOrderItemDto.orderId },
-      });
-
-      // Check if all statuses are the same or partially complete
-      const allReceived = orderItems.every(item => item.status === 'Received');
-      const allPrinted = orderItems.every(item => item.status === 'Printed');
-      const allCompleted = orderItems.every(item => item.status === 'Completed');
-      const allDelivered = orderItems.every(item => item.status === 'Delivered');
-
-      let newOrderStatus = 'Processing'; // Default status
-
-      if (allReceived) {
-        newOrderStatus = 'Pending';
-      } else if (allPrinted) {
-        newOrderStatus = 'Printed';
-      } else if (allCompleted) {
-        newOrderStatus = 'Completed';
-      } else if (allDelivered) {
-        newOrderStatus = 'Delivered';
-      }
-
-      // Update the order with the new status
-      await this.orderRepository.update(createOrderItemDto.orderId, { status: newOrderStatus });
-
+      await queryRunner.commitTransaction();
       return createdOrderItem;
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       console.error('Error creating order item:', error);
 
       if (error.code === 'ER_DUP_ENTRY') {
@@ -76,42 +48,50 @@ export class OrderItemsService {
       }
 
       throw new Error(`An unexpected error occurred: ${error.message}`);
+    } finally {
+      await queryRunner.release();
     }
   }
 
   async findAll(orderId: string) {
-    const orderItems = await this.orderItemRepository.find({
+    return await this.orderItemsRepository.find({
       where: { orderId },
-      relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
+      relations: [
+        'order',
+        'uom',
+        'pricing',
+        'item',
+        'service',
+        'orderItemNotes',
+        'orderItemNotes.user'
+      ]
     });
-
-    return orderItems;
   }
 
   async findAllOrderItems(skip: number, take: number, search?: string, startDate?: string, endDate?: string, item?: string, status?: string) {
-    const queryBuilder = this.orderItemRepository
-      .createQueryBuilder('orderItem')
-      .leftJoinAndSelect('orderItem.order', 'order')
+    const queryBuilder = this.orderItemsRepository
+      .createQueryBuilder('orderItems')
+      .leftJoinAndSelect('orderItems.order', 'order')
       .leftJoinAndSelect('order.customer', 'customer')
-      .leftJoinAndSelect('orderItem.uom', 'uom')
-      .leftJoinAndSelect('orderItem.pricing', 'pricing')
-      .leftJoinAndSelect('orderItem.item', 'item')
-      .leftJoinAndSelect('orderItem.service', 'service')
-      .leftJoinAndSelect('orderItem.orderItemNotes', 'orderItemNotes')
+      .leftJoinAndSelect('orderItems.uom', 'uom')
+      .leftJoinAndSelect('orderItems.pricing', 'pricing')
+      .leftJoinAndSelect('orderItems.item', 'item')
+      .leftJoinAndSelect('orderItems.service', 'service')
+      .leftJoinAndSelect('orderItems.orderItemNotes', 'orderItemNotes')
       .leftJoinAndSelect('orderItemNotes.user', 'user')
-      .orderBy('orderItem.createdAt', 'DESC')
+      .orderBy('orderItems.createdAt', 'DESC')
       .skip(Number(skip))
       .take(Number(take));
 
-    // Search filter for series, fullName, or phone
+    // Search filter
     if (search) {
       queryBuilder.where(
-        'order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search OR customer.email LIKE :search',
+        '(order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search OR customer.email LIKE :search)',
         { search: `%${search}%` }
       );
     }
 
-    // Filter by start and end dates
+    // Date range filter
     if (startDate && endDate) {
       queryBuilder.andWhere('order.orderDate BETWEEN :startDate AND :endDate', {
         startDate: new Date(startDate),
@@ -119,18 +99,49 @@ export class OrderItemsService {
       });
     }
 
+    // Item filter
     if (item) {
       queryBuilder.andWhere('item.name LIKE :item', { item: `%${item}%` });
     }
 
+    // Status filter
     if (status) {
-      queryBuilder.andWhere('orderItem.status = :status', { status });
+      queryBuilder.andWhere('orderItems.status = :status', { status });
     }
 
     const [orderItems, total] = await queryBuilder.getManyAndCount();
 
     // Calculate total amount sum
-    const totalAmountSum = orderItems.reduce((sum, orderItem) => sum + orderItem.totalAmount, 0);
+    const totalAmountQuery = this.orderItemsRepository
+      .createQueryBuilder('orderItems')
+      .select('SUM(orderItems.totalAmount)', 'totalAmountSum');
+
+    // Apply the same filters to the sum query
+    if (search) {
+      totalAmountQuery.leftJoin('orderItems.order', 'order')
+        .leftJoin('order.customer', 'customer')
+        .where('(order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search OR customer.email LIKE :search)', 
+          { search: `%${search}%` });
+    }
+
+    if (startDate && endDate) {
+      totalAmountQuery.andWhere('order.orderDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
+    }
+
+    if (item) {
+      totalAmountQuery.leftJoin('orderItems.item', 'item')
+        .andWhere('item.name LIKE :item', { item: `%${item}%` });
+    }
+
+    if (status) {
+      totalAmountQuery.andWhere('orderItems.status = :status', { status });
+    }
+
+    const totalAmountResult = await totalAmountQuery.getRawOne();
+    const totalAmountSum = totalAmountResult?.totalAmountSum || 0;
 
     return {
       orderItems,
@@ -140,130 +151,172 @@ export class OrderItemsService {
   }
 
   async findOne(id: string) {
-    return this.orderItemRepository.findOne({
+    return this.orderItemsRepository.findOne({
       where: { id },
       relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
     });
   }
 
   async update(id: string, updateOrderItemDto: UpdateOrderItemDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      await this.orderItemRepository.update(id, {
+      // Get the current order item to check status changes
+      const currentOrderItem = await this.orderItemsRepository.findOne({
+        where: { id },
+        relations: ['item'],
+      });
+
+      if (!currentOrderItem) {
+        throw new NotFoundException('Order item not found');
+      }
+
+      // Handle stock reduction for Printed or Void status (only when status changes to these states)
+      if ((updateOrderItemDto.status === 'Printed' || updateOrderItemDto.status === 'Void') && 
+          currentOrderItem.status !== 'Printed' && currentOrderItem.status !== 'Void') {
+        
+        const operatorStock = await this.operatorStockRepository.findOne({
+          where: { itemId: currentOrderItem.itemId },
+        });
+
+        if (!operatorStock) {
+          throw new ConflictException(`Please make a request for item ${currentOrderItem.item.name} before trying to print`);
+        }
+
+        // Check if the stock quantity is sufficient
+        if (operatorStock.quantity < currentOrderItem.unit) {
+          throw new ConflictException('Insufficient stock for this item.');
+        }
+
+        // Reduce stock
+        await queryRunner.manager.update(OperatorStock, operatorStock.id, {
+          quantity: operatorStock.quantity - currentOrderItem.unit,
+        });
+      }
+
+      // Handle stock restoration when status changes from Printed/Void to other states
+      if ((currentOrderItem.status === 'Printed' || currentOrderItem.status === 'Void') && 
+          updateOrderItemDto.status !== 'Printed' && updateOrderItemDto.status !== 'Void') {
+        
+        const operatorStock = await this.operatorStockRepository.findOne({
+          where: { itemId: currentOrderItem.itemId },
+        });
+
+        if (operatorStock) {
+          // Restore stock
+          await queryRunner.manager.update(OperatorStock, operatorStock.id, {
+            quantity: operatorStock.quantity + currentOrderItem.unit,
+          });
+        }
+      }
+
+      // Check payment verification for Approved status
+      if (updateOrderItemDto.status === 'Approved') {
+        const orderPayment = await this.paymentTermRepository.findOne({
+          where: { orderId: updateOrderItemDto.orderId },
+          relations: ['order'],
+        });
+
+        if (orderPayment && orderPayment.forcePayment && orderPayment.remainingAmount > 0) {
+          throw new ConflictException('Payment is not completed');
+        }
+      }
+
+      // Update the order item
+      await queryRunner.manager.update(OrderItems, id, {
+        orderId: updateOrderItemDto.orderId,
         itemId: updateOrderItemDto.itemId,
-        quantity: updateOrderItemDto.quantity ? parseFloat(updateOrderItemDto.quantity.toString()) : undefined,
+        quantity: updateOrderItemDto.quantity,
         serviceId: updateOrderItemDto.serviceId,
-        width: updateOrderItemDto.width ? parseFloat(updateOrderItemDto.width.toString()) : undefined,
-        height: updateOrderItemDto.height ? parseFloat(updateOrderItemDto.height.toString()) : undefined,
-        discount: updateOrderItemDto.discount,
+        width: updateOrderItemDto.width !== null && updateOrderItemDto.width !== undefined
+          ? parseFloat(updateOrderItemDto.width.toString())
+          : null,
+        height: updateOrderItemDto.height !== null && updateOrderItemDto.height !== undefined
+          ? parseFloat(updateOrderItemDto.height.toString())
+          : null,
+        discount: parseFloat((updateOrderItemDto.discount || 0).toString()),
         level: updateOrderItemDto.level,
-        totalAmount: updateOrderItemDto.totalAmount ? parseFloat(updateOrderItemDto.totalAmount.toString()) : undefined,
+        totalAmount: parseFloat((updateOrderItemDto.totalAmount || 0).toString()),
         adminApproval: updateOrderItemDto.adminApproval,
         uomId: updateOrderItemDto.uomId,
-        unitPrice: updateOrderItemDto.unitPrice ? parseFloat(updateOrderItemDto.unitPrice.toString()) : undefined,
+        unitPrice: parseFloat((updateOrderItemDto.unitPrice || 0).toString()),
         description: updateOrderItemDto.description,
         isDiscounted: updateOrderItemDto.isDiscounted,
         status: updateOrderItemDto.status,
         pricingId: updateOrderItemDto.pricingId,
-        unit: updateOrderItemDto.unit ? parseFloat(updateOrderItemDto.unit.toString()) : undefined,
+        unit: parseFloat((updateOrderItemDto.unit || 0).toString()),
         baseUomId: updateOrderItemDto.baseUomId,
       });
 
-      // Get the updated order item to check order status
-      const updatedOrderItem = await this.orderItemRepository.findOne({
+      // Update order status based on all order items
+      await this.updateOrderStatus(updateOrderItemDto.orderId, queryRunner);
+
+      await queryRunner.commitTransaction();
+
+      return await this.orderItemsRepository.findOne({
         where: { id },
-        relations: ['order'],
-      });
-
-      if (updatedOrderItem) {
-        // Fetch all order items for this order
-        const orderItems = await this.orderItemRepository.find({
-          where: { orderId: updatedOrderItem.orderId },
-        });
-
-        // Check if all statuses are the same
-        const allReceived = orderItems.every(item => item.status === 'Received');
-        const allPrinted = orderItems.every(item => item.status === 'Printed');
-        const allCompleted = orderItems.every(item => item.status === 'Completed');
-        const allDelivered = orderItems.every(item => item.status === 'Delivered');
-
-        let newOrderStatus = 'Processing';
-
-        if (allReceived) {
-          newOrderStatus = 'Pending';
-        } else if (allPrinted) {
-          newOrderStatus = 'Printed';
-        } else if (allCompleted) {
-          newOrderStatus = 'Completed';
-        } else if (allDelivered) {
-          newOrderStatus = 'Delivered';
-        }
-
-        // Update the order status
-        await this.orderRepository.update(updatedOrderItem.orderId, { status: newOrderStatus });
-      }
-
-      return await this.orderItemRepository.findOne({
-        where: { id },
-        relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
+        relations: ['order', 'item', 'service', 'pricing', 'uom'],
       });
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       console.error('Error updating order item:', error);
-
-      if (error.code === 'ER_DUP_ENTRY') {
-        throw new ConflictException('Unique constraint failed. Please check your data.');
-      }
-
-      throw new Error(`An unexpected error occurred: ${error.message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 
   async remove(id: string) {
-    try {
-      const orderItem = await this.orderItemRepository.findOne({
-        where: { id },
-        relations: ['order'],
-      });
+    const orderItem = await this.orderItemsRepository.findOne({
+      where: { id },
+      relations: ['order'],
+    });
 
-      if (!orderItem) {
-        throw new Error('Order item not found');
-      }
-
-      const orderId = orderItem.orderId;
-
-      // Delete the order item
-      await this.orderItemRepository.remove(orderItem);
-
-      // Fetch remaining order items for this order
-      const remainingOrderItems = await this.orderItemRepository.find({
-        where: { orderId },
-      });
-
-      // Update order status based on remaining items
-      if (remainingOrderItems.length > 0) {
-        const allReceived = remainingOrderItems.every(item => item.status === 'Received');
-        const allPrinted = remainingOrderItems.every(item => item.status === 'Printed');
-        const allCompleted = remainingOrderItems.every(item => item.status === 'Completed');
-        const allDelivered = remainingOrderItems.every(item => item.status === 'Delivered');
-
-        let newOrderStatus = 'Processing';
-
-        if (allReceived) {
-          newOrderStatus = 'Pending';
-        } else if (allPrinted) {
-          newOrderStatus = 'Printed';
-        } else if (allCompleted) {
-          newOrderStatus = 'Completed';
-        } else if (allDelivered) {
-          newOrderStatus = 'Delivered';
-        }
-
-        await this.orderRepository.update(orderId, { status: newOrderStatus });
-      }
-
-      return { message: 'Order item deleted successfully' };
-    } catch (error) {
-      console.error('Error removing order item:', error);
-      throw new Error('An unexpected error occurred.');
+    if (!orderItem) {
+      throw new NotFoundException('Order item not found');
     }
+
+    const orderId = orderItem.orderId;
+    await this.orderItemsRepository.remove(orderItem);
+
+    // Update order status after removal
+    await this.updateOrderStatus(orderId);
+
+    return { message: `Order item with ID ${id} removed successfully` };
+  }
+
+  private async updateOrderStatus(orderId: string, queryRunner?: any) {
+    const orderItems = await (queryRunner ? queryRunner.manager.find(OrderItems, {
+      where: { orderId },
+    }) : this.orderItemsRepository.find({
+      where: { orderId },
+    }));
+
+    // Check if all statuses are the same
+    const allReceived = orderItems.every(item => item.status === 'Received');
+    const allPrinted = orderItems.every(item => item.status === 'Printed');
+    const allCompleted = orderItems.every(item => item.status === 'Completed');
+    const allDelivered = orderItems.every(item => item.status === 'Delivered');
+
+    let newOrderStatus = 'Processing'; // Default status
+
+    if (allReceived) {
+      newOrderStatus = 'Pending';
+    } else if (allPrinted) {
+      newOrderStatus = 'Printed';
+    } else if (allCompleted) {
+      newOrderStatus = 'Completed';
+    } else if (allDelivered) {
+      newOrderStatus = 'Delivered';
+    }
+
+    // Update the order status
+    await (queryRunner ? queryRunner.manager.update(Order, orderId, {
+      status: newOrderStatus,
+    }) : this.orderRepository.update(orderId, {
+      status: newOrderStatus,
+    }));
   }
 }
