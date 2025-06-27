@@ -107,18 +107,31 @@ export class OrdersService {
 
       // Create payment term if provided
       if (createOrderDto.paymentTerm) {
+        const hasTransactions = createOrderDto.paymentTerm.transactions && createOrderDto.paymentTerm.transactions.length > 0;
+        const remainingAmount = parseFloat((createOrderDto.paymentTerm.remainingAmount || 0).toString());
+        
+        // Determine status based on transactions and remaining amount
+        let paymentStatus = 'Not Paid';
+        if (hasTransactions) {
+          if (remainingAmount === 0) {
+            paymentStatus = 'Fully Paid';
+          } else if (remainingAmount > 0 && remainingAmount < createOrderDto.grandTotal) {
+            paymentStatus = 'Partially Paid';
+          }
+        }
+
         const paymentTerm = this.paymentTermRepository.create({
           orderId: savedOrder.id,
           totalAmount: parseFloat((createOrderDto.paymentTerm.totalAmount || 0).toString()),
-          remainingAmount: parseFloat((createOrderDto.paymentTerm.remainingAmount || 0).toString()),
-          status: this.getPaymentTermStatus(createOrderDto.paymentTerm.remainingAmount || 0, createOrderDto.grandTotal),
+          remainingAmount: remainingAmount,
+          status: paymentStatus,
           forcePayment: createOrderDto.paymentTerm.forcePayment || false,
         });
 
         const savedPaymentTerm = await queryRunner.manager.save(PaymentTerm, paymentTerm);
 
         // Create payment transactions if provided
-        if (createOrderDto.paymentTerm.transactions?.length > 0) {
+        if (hasTransactions) {
           const paymentTransactions = createOrderDto.paymentTerm.transactions.map(transaction =>
             this.paymentTransactionRepository.create({
               paymentTermId: savedPaymentTerm.id,
@@ -510,16 +523,29 @@ export class OrdersService {
         }
 
         // Create new payment term
+        const hasTransactions = paymentTerm.transactions && paymentTerm.transactions.length > 0;
+        const remainingAmount = parseFloat((paymentTerm.remainingAmount || 0).toString());
+        
+        // Determine status based on transactions and remaining amount
+        let paymentStatus = 'Not Paid';
+        if (hasTransactions) {
+          if (remainingAmount === 0) {
+            paymentStatus = 'Fully Paid';
+          } else if (remainingAmount > 0 && remainingAmount < orderData.grandTotal) {
+            paymentStatus = 'Partially Paid';
+          }
+        }
+
         const newPaymentTerm = await queryRunner.manager.save(PaymentTerm, {
           orderId: id,
           totalAmount: parseFloat((paymentTerm.totalAmount || 0).toString()),
-          remainingAmount: parseFloat((paymentTerm.remainingAmount || 0).toString()),
-          status: this.getPaymentTermStatus(paymentTerm.remainingAmount || 0, orderData.grandTotal || 0),
+          remainingAmount: remainingAmount,
+          status: paymentStatus,
           forcePayment: paymentTerm.forcePayment || false,
         });
 
         // Create payment transactions
-        if (paymentTerm.transactions?.length > 0) {
+        if (hasTransactions) {
           const paymentTransactions = paymentTerm.transactions.map(transaction =>
             this.paymentTransactionRepository.create({
               paymentTermId: newPaymentTerm.id,
@@ -624,6 +650,8 @@ export class OrdersService {
       return 'Fully Paid';
     } else if (remainingAmount === grandTotal) {
       return 'Not Paid';
+    } else {
+      return 'Not Paid'; // Default case
     }
   }
 }
