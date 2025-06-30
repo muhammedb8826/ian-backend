@@ -10,7 +10,6 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { PaymentTransaction } from 'src/entities/payment-transaction.entity';
 import { Commission } from 'src/entities/commission.entity';
 import { CommissionTransaction } from 'src/entities/commission-transaction.entity';
-import { OperatorStockService } from 'src/operator-stock/operator-stock.service';
 
 @Injectable()
 export class OrdersService {
@@ -30,10 +29,39 @@ export class OrdersService {
     @InjectRepository(CommissionTransaction)
     private readonly commissionTransactionRepository: Repository<CommissionTransaction>,
     private readonly dataSource: DataSource,
-    private readonly operatorStockService: OperatorStockService,
   ) {}
 
   async create(createOrderDto: CreateOrderDto) {
+    // Validate required fields
+    if (!createOrderDto.customerId) {
+      throw new BadRequestException('Customer ID is required');
+    }
+    if (!createOrderDto.orderItems || createOrderDto.orderItems.length === 0) {
+      throw new BadRequestException('At least one order item is required');
+    }
+    if (!createOrderDto.series) {
+      throw new BadRequestException('Series is required');
+    }
+
+    // Validate order items
+    for (const item of createOrderDto.orderItems) {
+      if (!item.itemId) {
+        throw new BadRequestException('Item ID is required for all order items');
+      }
+      if (!item.serviceId) {
+        throw new BadRequestException('Service ID is required for all order items');
+      }
+      if (!item.pricingId) {
+        throw new BadRequestException('Pricing ID is required for all order items');
+      }
+      if (!item.uomId) {
+        throw new BadRequestException('UOM ID is required for all order items');
+      }
+      if (!item.baseUomId) {
+        throw new BadRequestException('Base UOM ID is required for all order items');
+      }
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -85,7 +113,7 @@ export class OrdersService {
           uomId: item.uomId,
           quantity: parseFloat((item.quantity || 0).toString()),
           unitPrice: parseFloat((item.unitPrice || 0).toString()),
-          description: item.description,
+          description: item.description || '',
           isDiscounted: item.isDiscounted || false,
           status: item.status,
           pricingId: item.pricingId,
@@ -96,19 +124,18 @@ export class OrdersService {
 
       await queryRunner.manager.save(OrderItems, orderItems);
 
-      // Reduce operator stock for ordered items
-      try {
-        await this.operatorStockService.reduceStockForOrder(orderItems);
-      } catch (error) {
-        // If stock reduction fails, rollback the transaction
-        await queryRunner.rollbackTransaction();
-        throw new BadRequestException(`Stock reduction failed: ${error.message}`);
+      // Stock reduction is now handled when status changes to "Printed" in the order items service
+      // Removed stock reduction from order creation
+
+      // Handle payment term - support both array and object formats
+      let paymentTermData = createOrderDto.paymentTerm;
+      if (Array.isArray(paymentTermData)) {
+        paymentTermData = paymentTermData[0]; // Take the first item if it's an array
       }
 
-      // Create payment term if provided
-      if (createOrderDto.paymentTerm) {
-        const hasTransactions = createOrderDto.paymentTerm.transactions && createOrderDto.paymentTerm.transactions.length > 0;
-        const remainingAmount = parseFloat((createOrderDto.paymentTerm.remainingAmount || 0).toString());
+      if (paymentTermData) {
+        const hasTransactions = paymentTermData.transactions && paymentTermData.transactions.length > 0;
+        const remainingAmount = parseFloat((paymentTermData.remainingAmount || 0).toString());
         
         // Determine status based on transactions and remaining amount
         let paymentStatus = 'Not Paid';
@@ -122,25 +149,25 @@ export class OrdersService {
 
         const paymentTerm = this.paymentTermRepository.create({
           orderId: savedOrder.id,
-          totalAmount: parseFloat((createOrderDto.paymentTerm.totalAmount || 0).toString()),
+          totalAmount: parseFloat((paymentTermData.totalAmount || 0).toString()),
           remainingAmount: remainingAmount,
           status: paymentStatus,
-          forcePayment: createOrderDto.paymentTerm.forcePayment || false,
+          forcePayment: paymentTermData.forcePayment || false,
         });
 
         const savedPaymentTerm = await queryRunner.manager.save(PaymentTerm, paymentTerm);
 
         // Create payment transactions if provided
         if (hasTransactions) {
-          const paymentTransactions = createOrderDto.paymentTerm.transactions.map(transaction =>
+          const paymentTransactions = paymentTermData.transactions.map(transaction =>
             this.paymentTransactionRepository.create({
               paymentTermId: savedPaymentTerm.id,
               date: transaction.date ? new Date(transaction.date) : new Date(),
               paymentMethod: transaction.paymentMethod,
-              reference: transaction.reference,
+              reference: transaction.reference || '',
               amount: parseFloat((transaction.amount || 0).toString()),
-              status: transaction.status,
-              description: transaction.description,
+              status: transaction.status === 'pending' ? 'Pending' : (transaction.status || 'Pending'),
+              description: transaction.description || '',
             })
           );
 
@@ -201,6 +228,14 @@ export class OrdersService {
       if (error.code === 'ER_DUP_ENTRY') {
         throw new ConflictException('Unique constraint failed. Please check your data.');
       }
+
+      // Log more detailed error information
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        sqlMessage: error.sqlMessage
+      });
 
       throw new Error(`An unexpected error occurred: ${error.message}`);
     } finally {
@@ -441,19 +476,8 @@ export class OrdersService {
 
       // Delete order items that are no longer present
       if (orderItemsToDelete.length > 0) {
-        // Restore stock for deleted items
-        const deletedItems = existingOrder.orderItems.filter(item => 
-          orderItemsToDelete.includes(item.id)
-        );
-        
-        if (deletedItems.length > 0) {
-          try {
-            await this.operatorStockService.restoreStockForOrder(deletedItems);
-          } catch (error) {
-            await queryRunner.rollbackTransaction();
-            throw new BadRequestException(`Stock restoration failed: ${error.message}`);
-          }
-        }
+        // Stock restoration is now handled when status changes in the order items service
+        // Removed stock restoration from order update
         
         await queryRunner.manager.delete(OrderItems, { id: In(orderItemsToDelete) });
       }
@@ -503,14 +527,6 @@ export class OrdersService {
             unit: parseFloat((item.unit || 0).toString()),
             baseUomId: item.baseUomId,
           });
-
-          // Reduce stock for new item
-          try {
-            await this.operatorStockService.reduceStockForOrder([item]);
-          } catch (error) {
-            await queryRunner.rollbackTransaction();
-            throw new BadRequestException(`Stock reduction failed for new item: ${error.message}`);
-          }
         }
       }
 

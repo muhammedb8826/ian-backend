@@ -9,7 +9,6 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { PaymentTransaction } from 'src/entities/payment-transaction.entity';
 import { Commission } from 'src/entities/commission.entity';
 import { CommissionTransaction } from 'src/entities/commission-transaction.entity';
-import { OperatorStockModule } from 'src/operator-stock/operator-stock.module';
 
 @Module({
   imports: [
@@ -21,8 +20,7 @@ import { OperatorStockModule } from 'src/operator-stock/operator-stock.module';
       PaymentTransaction, 
       Commission, 
       CommissionTransaction
-    ]),
-    OperatorStockModule
+    ])
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

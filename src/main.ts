@@ -6,6 +6,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { Request, Response } from 'express';
 
 @Injectable()
 export class CorsInterceptor implements NestInterceptor {
@@ -20,6 +22,41 @@ export class CorsInterceptor implements NestInterceptor {
     response.header('Access-Control-Allow-Credentials', 'true');
     
     return next.handle();
+  }
+}
+
+@Catch()
+export class GlobalExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
+    console.error('Global exception caught:', {
+      exception: exception,
+      message: exception instanceof Error ? exception.message : 'Unknown error',
+      stack: exception instanceof Error ? exception.stack : undefined,
+      url: request.url,
+      method: request.method,
+      body: request.body,
+    });
+
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const message =
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : 'Internal server error';
+
+    response.status(status).json({
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      message: message,
+    });
   }
 }
 
@@ -81,6 +118,9 @@ async function bootstrap() {
   
   // Add global interceptor for CORS headers
   app.useGlobalInterceptors(new CorsInterceptor());
+  
+  // Add global exception filter
+  app.useGlobalFilters(new GlobalExceptionFilter());
   
   // Add global validation pipe after CORS
   app.useGlobalPipes(new ValidationPipe());

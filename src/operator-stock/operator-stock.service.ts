@@ -107,13 +107,21 @@ export class OperatorStockService {
         throw new NotFoundException(`No operator stock found for item: ${orderItem.itemId}`);
       }
 
-      // Calculate the quantity to reduce (convert to base unit if needed)
-      const quantityToReduce = orderItem.quantity * (orderItem.unit || 1);
+      // Use unit as the quantity to reduce (unit represents the total measurement amount)
+      const quantityToReduce = parseFloat(orderItem.unit?.toString() || '0');
+      
+      console.log(`Stock reduction calculation:`, {
+        itemId: orderItem.itemId,
+        itemName: operatorStock.item?.name,
+        availableStock: operatorStock.quantity,
+        requestedUnit: quantityToReduce,
+        quantityToReduce: quantityToReduce
+      });
       
       // Check if there's enough stock
       if (operatorStock.quantity < quantityToReduce) {
         throw new NotFoundException(
-          `Insufficient stock for item: ${operatorStock.item.name}. Available: ${operatorStock.quantity}, Required: ${quantityToReduce}`
+          `Insufficient stock for item: ${operatorStock.item?.name || orderItem.itemId}. Available: ${operatorStock.quantity}, Required: ${quantityToReduce}`
         );
       }
 
@@ -161,8 +169,8 @@ export class OperatorStockService {
         throw new NotFoundException(`No operator stock found for item: ${orderItem.itemId}`);
       }
 
-      // Calculate the quantity to restore (convert to base unit if needed)
-      const quantityToRestore = orderItem.quantity * (orderItem.unit || 1);
+      // Use unit as the quantity to restore (unit represents the total measurement amount)
+      const quantityToRestore = parseFloat(orderItem.unit?.toString() || '0');
       
       // Restore the stock
       const newQuantity = operatorStock.quantity + quantityToRestore;

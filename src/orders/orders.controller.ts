@@ -12,6 +12,24 @@ export class OrdersController {
     return this.ordersService.create(createOrderDto);
   }
 
+  @Post('debug')
+  async debugCreate(@Body() createOrderDto: CreateOrderDto) {
+    try {
+      console.log('Debug: Received order data:', JSON.stringify(createOrderDto, null, 2));
+      const result = await this.ordersService.create(createOrderDto);
+      console.log('Debug: Order created successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('Debug: Error creating order:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        sqlMessage: error.sqlMessage
+      });
+      throw error;
+    }
+  }
+
   @Get()
   async findAll(
     @Query('page') page: number = 1,

@@ -185,14 +185,17 @@ export class OrderItemsService {
           throw new ConflictException(`Please make a request for item ${currentOrderItem.item.name} before trying to print`);
         }
 
+        // Use unit as the quantity to reduce (unit represents the total measurement amount)
+        const quantityToReduce = currentOrderItem.unit;
+        
         // Check if the stock quantity is sufficient
-        if (operatorStock.quantity < currentOrderItem.unit) {
-          throw new ConflictException('Insufficient stock for this item.');
+        if (operatorStock.quantity < quantityToReduce) {
+          throw new ConflictException(`Insufficient stock for item: ${currentOrderItem.item.name}. Available: ${operatorStock.quantity}, Required: ${quantityToReduce}`);
         }
 
         // Reduce stock
         await queryRunner.manager.update(OperatorStock, operatorStock.id, {
-          quantity: operatorStock.quantity - currentOrderItem.unit,
+          quantity: operatorStock.quantity - quantityToReduce,
         });
       }
 
@@ -205,22 +208,47 @@ export class OrderItemsService {
         });
 
         if (operatorStock) {
+          // Use unit as the quantity to restore (unit represents the total measurement amount)
+          const quantityToRestore = currentOrderItem.unit;
+          
           // Restore stock
           await queryRunner.manager.update(OperatorStock, operatorStock.id, {
-            quantity: operatorStock.quantity + currentOrderItem.unit,
+            quantity: operatorStock.quantity + quantityToRestore,
           });
         }
       }
 
-      // Check payment verification for Approved status
-      if (updateOrderItemDto.status === 'Approved') {
-        const orderPayment = await this.paymentTermRepository.findOne({
-          where: { orderId: updateOrderItemDto.orderId },
-          relations: ['order'],
+      // Check payment verification based on forcePayment setting and status
+      const orderPayment = await this.paymentTermRepository.findOne({
+        where: { orderId: updateOrderItemDto.orderId },
+        relations: ['order'],
+      });
+
+      if (orderPayment) {
+        console.log('Payment verification:', {
+          orderId: updateOrderItemDto.orderId,
+          newStatus: updateOrderItemDto.status,
+          forcePayment: orderPayment.forcePayment,
+          remainingAmount: orderPayment.remainingAmount,
+          totalAmount: orderPayment.totalAmount
         });
 
-        if (orderPayment && orderPayment.forcePayment && orderPayment.remainingAmount > 0) {
-          throw new ConflictException('Payment is not completed');
+        // Always check payment when status changes to "Delivered"
+        if (updateOrderItemDto.status === 'Delivered' && orderPayment.remainingAmount > 0) {
+          throw new ConflictException(
+            `Payment is not completed. Cannot deliver order with outstanding payment of ${orderPayment.remainingAmount}.`
+          );
+        }
+        
+        // For other status changes, only block if forcePayment is true and payment is not paid at all
+        if (
+          orderPayment.forcePayment &&
+          orderPayment.remainingAmount === orderPayment.totalAmount && // Not paid at all
+          updateOrderItemDto.status !== 'Delivered'
+        ) {
+          throw new ConflictException(
+            `Payment is not completed. Cannot change status to "${updateOrderItemDto.status}" because force payment is enabled and no payment has been made.`
+          );
         }
       }
 
