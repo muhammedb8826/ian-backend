@@ -646,16 +646,73 @@ export class OrdersService {
   }
 
   async remove(id: string) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      const order = await this.orderRepository.findOne({ where: { id } });
+      const order = await this.orderRepository.findOne({ 
+        where: { id },
+        relations: ['orderItems', 'paymentTerm', 'paymentTerm.transactions', 'commission', 'commission.transactions']
+      });
+      
       if (!order) {
         throw new NotFoundException(`Order with ID ${id} not found`);
       }
+
+      // Delete related entities in the correct order
       
-      return await this.orderRepository.remove(order);
+      // 1. Delete commission transactions first
+      if (order.commission && order.commission.length > 0) {
+        for (const commission of order.commission) {
+          if (commission.transactions && commission.transactions.length > 0) {
+            await queryRunner.manager.delete(CommissionTransaction, { commissionId: commission.id });
+          }
+        }
+      }
+
+      // 2. Delete commissions
+      if (order.commission && order.commission.length > 0) {
+        await queryRunner.manager.delete(Commission, { orderId: id });
+      }
+
+      // 3. Delete payment transactions first
+      if (order.paymentTerm && order.paymentTerm.length > 0) {
+        for (const paymentTerm of order.paymentTerm) {
+          if (paymentTerm.transactions && paymentTerm.transactions.length > 0) {
+            await queryRunner.manager.delete(PaymentTransaction, { paymentTermId: paymentTerm.id });
+          }
+        }
+      }
+
+      // 4. Delete payment terms
+      if (order.paymentTerm && order.paymentTerm.length > 0) {
+        await queryRunner.manager.delete(PaymentTerm, { orderId: id });
+      }
+
+      // 5. Delete order items
+      if (order.orderItems && order.orderItems.length > 0) {
+        await queryRunner.manager.delete(OrderItems, { orderId: id });
+      }
+
+      // 6. Finally delete the order
+      await queryRunner.manager.delete(Order, { id: id });
+
+      await queryRunner.commitTransaction();
+
+      return { message: `Order with ID ${id} has been successfully deleted` };
+
     } catch (error) {
-      console.log(error);
-      throw new Error('An unexpected error occurred.');
+      await queryRunner.rollbackTransaction();
+      console.error('Error deleting order:', error);
+      
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      
+      throw new Error('An unexpected error occurred while deleting the order.');
+    } finally {
+      await queryRunner.release();
     }
   }
 
