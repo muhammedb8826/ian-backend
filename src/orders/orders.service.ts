@@ -660,6 +660,16 @@ export class OrdersService {
         throw new NotFoundException(`Order with ID ${id} not found`);
       }
 
+      // Check if all order items have "received" status
+      if (order.orderItems && order.orderItems.length > 0) {
+        const nonReceivedItems = order.orderItems.filter(item => item.status !== 'Received');
+        if (nonReceivedItems.length > 0) {
+          throw new ConflictException(
+            `Cannot delete order. Order items with IDs [${nonReceivedItems.map(item => item.id).join(', ')}] are not in "received" status. Order is still in process.`
+          );
+        }
+      }
+
       // Delete related entities in the correct order
       
       // 1. Delete commission transactions first
