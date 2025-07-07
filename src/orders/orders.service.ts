@@ -10,6 +10,10 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { PaymentTransaction } from 'src/entities/payment-transaction.entity';
 import { Commission } from 'src/entities/commission.entity';
 import { CommissionTransaction } from 'src/entities/commission-transaction.entity';
+import { FixedCost } from 'src/entities/fixed-cost.entity';
+import { Item } from 'src/entities/item.entity';
+import { UOM } from 'src/entities/uom.entity';
+import { UnitCategory } from 'src/entities/unit-category.entity';
 
 @Injectable()
 export class OrdersService {
@@ -28,6 +32,14 @@ export class OrdersService {
     private readonly commissionRepository: Repository<Commission>,
     @InjectRepository(CommissionTransaction)
     private readonly commissionTransactionRepository: Repository<CommissionTransaction>,
+    @InjectRepository(FixedCost)
+    private readonly fixedCostRepository: Repository<FixedCost>,
+    @InjectRepository(Item)
+    private readonly itemRepository: Repository<Item>,
+    @InjectRepository(UOM)
+    private readonly uomRepository: Repository<UOM>,
+    @InjectRepository(UnitCategory)
+    private readonly unitCategoryRepository: Repository<UnitCategory>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -98,29 +110,54 @@ export class OrdersService {
 
       const savedOrder = await queryRunner.manager.save(Order, order);
 
-      // Create order items
-      const orderItems = createOrderDto.orderItems.map(item =>
-        this.orderItemsRepository.create({
+      // Create order items with calculated totalCost and sales
+      const orderItems = await Promise.all(createOrderDto.orderItems.map(async (item) => {
+        const width = item.width ? parseFloat(item.width.toString()) : null;
+        const height = item.height ? parseFloat(item.height.toString()) : null;
+        const quantity = parseFloat((item.quantity || 0).toString());
+
+        // Calculate totalCost and sales using the new methods
+        const totalCostResult = await this.calculateTotalCost(
+          item.itemId,
+          item.serviceId,
+          item.uomId,
+          width,
+          height,
+          quantity
+        );
+
+        const salesResult = await this.calculateSales(
+          item.itemId,
+          item.serviceId,
+          item.uomId,
+          width,
+          height,
+          quantity
+        );
+
+        return this.orderItemsRepository.create({
           orderId: savedOrder.id,
           itemId: item.itemId,
           serviceId: item.serviceId,
-          width: item.width ? parseFloat(item.width.toString()) : null,
-          height: item.height ? parseFloat(item.height.toString()) : null,
+          width: width,
+          height: height,
           discount: parseFloat((item.discount || 0).toString()),
           level: parseFloat((item.level || 0).toString()),
           totalAmount: parseFloat((item.totalAmount || 0).toString()),
           adminApproval: item.adminApproval || false,
           uomId: item.uomId,
-          quantity: parseFloat((item.quantity || 0).toString()),
+          quantity: quantity,
           unitPrice: parseFloat((item.unitPrice || 0).toString()),
           description: item.description || '',
           isDiscounted: item.isDiscounted || false,
           status: item.status,
           pricingId: item.pricingId,
-          unit: parseFloat((item.unit || 0).toString()),
-          baseUomId: item.baseUomId,
-        })
-      );
+          unit: totalCostResult.unit, // Use calculated unit
+          baseUomId: totalCostResult.baseUomId, // Use calculated baseUomId
+          totalCost: totalCostResult.totalCost,
+          sales: salesResult.sales,
+        });
+      }));
 
       await queryRunner.manager.save(OrderItems, orderItems);
 
@@ -482,28 +519,53 @@ export class OrdersService {
         await queryRunner.manager.delete(OrderItems, { id: In(orderItemsToDelete) });
       }
 
-      // Upsert order items
+      // Upsert order items with calculated totalCost and sales
       for (const item of orderItems) {
+        const width = item.width !== null ? parseFloat(item.width.toString()) : null;
+        const height = item.height !== null ? parseFloat(item.height.toString()) : null;
+        const quantity = parseFloat((item.quantity || 0).toString());
+
+        // Calculate totalCost and sales using the new methods
+        const totalCostResult = await this.calculateTotalCost(
+          item.itemId,
+          item.serviceId,
+          item.uomId,
+          width,
+          height,
+          quantity
+        );
+
+        const salesResult = await this.calculateSales(
+          item.itemId,
+          item.serviceId,
+          item.uomId,
+          width,
+          height,
+          quantity
+        );
+
         if (item.id) {
           // Update existing order item
           await queryRunner.manager.update(OrderItems, item.id, {
             itemId: item.itemId,
             serviceId: item.serviceId,
-            width: item.width !== null ? parseFloat(item.width.toString()) : null,
-            height: item.height !== null ? parseFloat(item.height.toString()) : null,
+            width: width,
+            height: height,
             discount: parseFloat((item.discount || 0).toString()),
             level: parseFloat((item.level || 0).toString()),
             totalAmount: parseFloat((item.totalAmount || 0).toString()),
             adminApproval: item.adminApproval || false,
             uomId: item.uomId,
-            quantity: parseFloat((item.quantity || 0).toString()),
+            quantity: quantity,
             unitPrice: parseFloat((item.unitPrice || 0).toString()),
             description: item.description,
             isDiscounted: item.isDiscounted || false,
             status: item.status,
             pricingId: item.pricingId,
-            unit: parseFloat((item.unit || 0).toString()),
-            baseUomId: item.baseUomId,
+            unit: totalCostResult.unit, // Use calculated unit
+            baseUomId: totalCostResult.baseUomId, // Use calculated baseUomId
+            totalCost: totalCostResult.totalCost,
+            sales: salesResult.sales,
           });
         } else {
           // Create new order item
@@ -511,21 +573,23 @@ export class OrdersService {
             orderId: id,
             itemId: item.itemId,
             serviceId: item.serviceId,
-            width: item.width !== null ? parseFloat(item.width.toString()) : null,
-            height: item.height !== null ? parseFloat(item.height.toString()) : null,
+            width: width,
+            height: height,
             discount: parseFloat((item.discount || 0).toString()),
             level: parseFloat((item.level || 0).toString()),
             totalAmount: parseFloat((item.totalAmount || 0).toString()),
             adminApproval: item.adminApproval || false,
             uomId: item.uomId,
-            quantity: parseFloat((item.quantity || 0).toString()),
+            quantity: quantity,
             unitPrice: parseFloat((item.unitPrice || 0).toString()),
             description: item.description,
             isDiscounted: item.isDiscounted || false,
             status: item.status,
             pricingId: item.pricingId,
-            unit: parseFloat((item.unit || 0).toString()),
-            baseUomId: item.baseUomId,
+            unit: totalCostResult.unit, // Use calculated unit
+            baseUomId: totalCostResult.baseUomId, // Use calculated baseUomId
+            totalCost: totalCostResult.totalCost,
+            sales: salesResult.sales,
           });
         }
       }
@@ -736,5 +800,841 @@ export class OrdersService {
     } else {
       return 'Not Paid'; // Default case
     }
+  }
+
+  // Calculate unit price for constant items (with width and height) - matches frontend calculateUnitPrice
+  private async calculateUnitPriceForConstantItems(
+    itemId: string,
+    serviceId: string,
+    uomId: string,
+    width: number,
+    height: number,
+    quantity: number
+  ): Promise<{ unitPrice: number; unit: number; baseUomId: string }> {
+    // Get item with unit category and UOMs
+    const item = await this.itemRepository.findOne({
+      where: { id: itemId },
+      relations: ['unitCategory', 'unitCategory.uoms']
+    });
+
+    if (!item || !item.unitCategory) {
+      throw new BadRequestException(`Item or unit category not found for item ${itemId}`);
+    }
+
+    // Find the selected UOM
+    const foundUom = item.unitCategory.uoms.find(uom => uom.id === uomId);
+    if (!foundUom) {
+      throw new BadRequestException(`UOM ${uomId} not found for item ${itemId}`);
+    }
+
+    // Get pricing
+    const pricing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId }
+    });
+
+    if (!pricing || pricing.sellingPrice <= 0) {
+      throw new BadRequestException(`Pricing not found or invalid for item ${itemId} and service ${serviceId}`);
+    }
+
+    // Check if unit category is constant and has width/height
+    if (!item.unitCategory.constant || !width || !height) {
+      throw new BadRequestException(`Item ${itemId} is not a constant unit category or missing width/height`);
+    }
+
+    // Find base unit
+    const baseUnit = item.unitCategory.uoms.find(unit => unit.baseUnit === true);
+    if (!baseUnit) {
+      throw new BadRequestException(`Base unit not found for item ${itemId}`);
+    }
+
+    // Calculate converted dimensions
+    const convertedWidth = width * foundUom.conversionRate;
+    const convertedHeight = height * foundUom.conversionRate;
+    
+    // Calculate unit (matches frontend: convertedWidth * convertedHeight * quantity)
+    const unit = convertedWidth * convertedHeight * quantity;
+    
+    // Calculate combination (matches frontend: convertedWidth * convertedHeight * quantity * servicePrice)
+    const combination = unit * pricing.sellingPrice;
+    
+    // Calculate divider (matches frontend: pricing.width * pricing.height)
+    const divider = (pricing.width || 0) * (pricing.height || 0);
+    
+    if (divider === 0) {
+      throw new BadRequestException(`Invalid pricing dimensions for item ${itemId}`);
+    }
+
+    // Calculate unit price (matches frontend: combination / divider)
+    const unitPrice = combination / divider;
+
+    return {
+      unitPrice,
+      unit,
+      baseUomId: baseUnit.id
+    };
+  }
+
+  // Calculate unit price for non-constant items (without width and height) - matches frontend calculateUnitPriceForNonAreaItems
+  private async calculateUnitPriceForNonConstantItems(
+    itemId: string,
+    serviceId: string,
+    uomId: string,
+    quantity: number
+  ): Promise<{ unitPrice: number; unit: number; baseUomId: string }> {
+    // Get item with unit category and UOMs
+    const item = await this.itemRepository.findOne({
+      where: { id: itemId },
+      relations: ['unitCategory', 'unitCategory.uoms']
+    });
+
+    if (!item || !item.unitCategory) {
+      throw new BadRequestException(`Item or unit category not found for item ${itemId}`);
+    }
+
+    // Find the selected UOM
+    const foundUom = item.unitCategory.uoms.find(uom => uom.id === uomId);
+    if (!foundUom) {
+      throw new BadRequestException(`UOM ${uomId} not found for item ${itemId}`);
+    }
+
+    // Get pricing
+    const pricing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId }
+    });
+
+    if (!pricing || pricing.sellingPrice <= 0) {
+      throw new BadRequestException(`Pricing not found or invalid for item ${itemId} and service ${serviceId}`);
+    }
+
+    // Check if unit category is NOT constant
+    if (item.unitCategory.constant) {
+      throw new BadRequestException(`Item ${itemId} is a constant unit category but should be non-constant`);
+    }
+
+    // Find base unit
+    const baseUnit = item.unitCategory.uoms.find(unit => unit.baseUnit === true);
+    if (!baseUnit) {
+      throw new BadRequestException(`Base unit not found for item ${itemId}`);
+    }
+
+    // Calculate converted quantity (matches frontend: quantity * conversionRate)
+    const convertedQuantity = quantity * foundUom.conversionRate;
+    
+    // Calculate unit (matches frontend: convertedQuantity)
+    const unit = convertedQuantity;
+    
+    // Calculate unit price (matches frontend: convertedQuantity * sellingPrice)
+    const unitPrice = convertedQuantity * pricing.sellingPrice;
+
+    return {
+      unitPrice,
+      unit,
+      baseUomId: baseUnit.id
+    };
+  }
+
+  // Calculate total cost for an order item
+  private async calculateTotalCost(
+    itemId: string,
+    serviceId: string,
+    uomId: string,
+    width: number | null,
+    height: number | null,
+    quantity: number
+  ): Promise<{ totalCost: number; unit: number; baseUomId: string }> {
+    // Get item to check if it's constant or not
+    const item = await this.itemRepository.findOne({
+      where: { id: itemId },
+      relations: ['unitCategory']
+    });
+
+    if (!item || !item.unitCategory) {
+      throw new BadRequestException(`Item or unit category not found for item ${itemId}`);
+    }
+
+    // Get pricing for cost price
+    const pricing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId }
+    });
+
+    if (!pricing) {
+      throw new BadRequestException(`Pricing not found for item ${itemId} and service ${serviceId}`);
+    }
+
+    let unit: number;
+    let baseUomId: string;
+
+    if (item.unitCategory.constant && width && height) {
+      // Use constant item calculation
+      const result = await this.calculateUnitPriceForConstantItems(itemId, serviceId, uomId, width, height, quantity);
+      unit = result.unit;
+      baseUomId = result.baseUomId;
+    } else {
+      // Use non-constant item calculation
+      const result = await this.calculateUnitPriceForNonConstantItems(itemId, serviceId, uomId, quantity);
+      unit = result.unit;
+      baseUomId = result.baseUomId;
+    }
+
+    // Calculate total cost using cost price
+    const totalCost = unit * (pricing.costPrice || 0);
+
+    return { totalCost, unit, baseUomId };
+  }
+
+  // Calculate sales for an order item
+  private async calculateSales(
+    itemId: string,
+    serviceId: string,
+    uomId: string,
+    width: number | null,
+    height: number | null,
+    quantity: number
+  ): Promise<{ sales: number; unit: number; baseUomId: string }> {
+    // Get item to check if it's constant or not
+    const item = await this.itemRepository.findOne({
+      where: { id: itemId },
+      relations: ['unitCategory']
+    });
+
+    if (!item || !item.unitCategory) {
+      throw new BadRequestException(`Item or unit category not found for item ${itemId}`);
+    }
+
+    let unit: number;
+    let baseUomId: string;
+
+    if (item.unitCategory.constant && width && height) {
+      // Use constant item calculation
+      const result = await this.calculateUnitPriceForConstantItems(itemId, serviceId, uomId, width, height, quantity);
+      unit = result.unit;
+      baseUomId = result.baseUomId;
+    } else {
+      // Use non-constant item calculation
+      const result = await this.calculateUnitPriceForNonConstantItems(itemId, serviceId, uomId, quantity);
+      unit = result.unit;
+      baseUomId = result.baseUomId;
+    }
+
+    // Get pricing for selling price
+    const pricing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId }
+    });
+
+    if (!pricing) {
+      throw new BadRequestException(`Pricing not found for item ${itemId} and service ${serviceId}`);
+    }
+
+    // Calculate sales using selling price
+    const sales = unit * pricing.sellingPrice;
+
+    return { sales, unit, baseUomId };
+  }
+
+  // Get total daily fixed cost
+  private async getTotalDailyFixedCost(): Promise<number> {
+    const fixedCosts = await this.fixedCostRepository.find();
+    
+    console.log(`📅 Single day fixed cost calculation:`);
+    
+    // Calculate total daily fixed cost
+    // If monthlyFixedCost is provided, use it to calculate daily cost
+    // Otherwise, use the dailyFixedCost directly
+    const totalDailyCost = fixedCosts.reduce((total, fixedCost) => {
+      let dailyCost = 0;
+      
+      if (fixedCost.monthlyFixedCost > 0) {
+        // Convert monthly to daily (assuming 30 days per month)
+        dailyCost = fixedCost.monthlyFixedCost / 30;
+        console.log(`💰 ${fixedCost.description}: $${fixedCost.monthlyFixedCost}/month = $${dailyCost.toFixed(2)}/day`);
+      } else {
+        // Use dailyFixedCost directly
+        dailyCost = fixedCost.dailyFixedCost;
+        console.log(`💰 ${fixedCost.description}: $${dailyCost}/day`);
+      }
+      
+      return total + dailyCost;
+    }, 0);
+    
+    console.log(`📊 Total daily fixed cost: $${totalDailyCost.toFixed(2)}`);
+    return totalDailyCost;
+  }
+
+  // Get total daily fixed cost for a specific date range
+  private async getTotalDailyFixedCostForDateRange(startDate: Date, endDate: Date): Promise<number> {
+    const fixedCosts = await this.fixedCostRepository.find();
+    
+    // Calculate the number of days in the date range (inclusive)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const timeDiff = end.getTime() - start.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+    
+    console.log(`📅 Date range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]} (${daysDiff} days)`);
+    
+    // Calculate total fixed cost for the period
+    // If monthlyFixedCost is provided, use it to calculate daily cost
+    // Otherwise, use the dailyFixedCost directly
+    const totalFixedCost = fixedCosts.reduce((total, fixedCost) => {
+      let costForPeriod = 0;
+      
+      if (fixedCost.monthlyFixedCost > 0) {
+        // Convert monthly to daily (assuming 30 days per month)
+        const dailyCost = fixedCost.monthlyFixedCost / 30;
+        costForPeriod = dailyCost * daysDiff;
+        console.log(`💰 ${fixedCost.description}: $${fixedCost.monthlyFixedCost}/month = $${dailyCost.toFixed(2)}/day × ${daysDiff} days = $${costForPeriod.toFixed(2)}`);
+      } else {
+        // Use dailyFixedCost directly
+        costForPeriod = fixedCost.dailyFixedCost * daysDiff;
+        console.log(`💰 ${fixedCost.description}: $${fixedCost.dailyFixedCost}/day × ${daysDiff} days = $${costForPeriod.toFixed(2)}`);
+      }
+      
+      return total + costForPeriod;
+    }, 0);
+    
+    console.log(`📊 Total fixed cost for period: $${totalFixedCost.toFixed(2)}`);
+    return totalFixedCost;
+  }
+
+  // Calculate profit for an order item
+  private async calculateProfit(
+    orderItem: OrderItems,
+    commissionAmount: number = 0
+  ): Promise<number> {
+    const totalDailyFixedCost = await this.getTotalDailyFixedCost();
+    const profit = orderItem.sales - orderItem.totalCost - commissionAmount - totalDailyFixedCost;
+    return Math.max(0, profit); // Ensure profit is not negative
+  }
+
+  // Calculate profit for entire order
+  async calculateOrderProfit(orderId: string): Promise<{
+    totalSales: number;
+    totalCost: number;
+    totalCommission: number;
+    totalDailyFixedCost: number;
+    totalProfit: number;
+    orderItemsProfit: Array<{
+      orderItemId: string;
+      sales: number;
+      totalCost: number;
+      commission: number;
+      profit: number;
+    }>;
+  }> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: [
+        'orderItems',
+        'commission',
+        'commission.transactions'
+      ]
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const totalDailyFixedCost = await this.getTotalDailyFixedCost();
+    let totalSales = 0;
+    let totalCost = 0;
+    let totalCommission = 0;
+    const orderItemsProfit = [];
+
+    for (const orderItem of order.orderItems) {
+      const sales = orderItem.sales;
+      const cost = orderItem.totalCost;
+      
+      // Calculate commission for this order item (proportional to sales)
+      const orderTotalSales = order.orderItems.reduce((sum, item) => sum + item.sales, 0);
+      const orderTotalCommission = order.commission?.reduce((sum, comm) => 
+        sum + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
+      
+      const commissionAmount = orderTotalSales > 0 ? (sales / orderTotalSales) * orderTotalCommission : 0;
+      const profit = await this.calculateProfit(orderItem, commissionAmount);
+
+      totalSales += sales;
+      totalCost += cost;
+      totalCommission += commissionAmount;
+
+      orderItemsProfit.push({
+        orderItemId: orderItem.id,
+        sales,
+        totalCost: cost,
+        commission: commissionAmount,
+        profit
+      });
+    }
+
+    const totalProfit = totalSales - totalCost - totalCommission - totalDailyFixedCost;
+
+    return {
+      totalSales,
+      totalCost,
+      totalCommission,
+      totalDailyFixedCost,
+      totalProfit: Math.max(0, totalProfit),
+      orderItemsProfit
+    };
+  }
+
+  // Calculate profit for filtered orders with date range
+  async calculateFilteredOrdersProfit(
+    startDate?: string,
+    endDate?: string,
+    search?: string,
+    item1?: string,
+    item2?: string,
+    item3?: string
+  ): Promise<{
+    totalSales: number;
+    totalCost: number;
+    totalCommission: number;
+    totalDailyFixedCost: number;
+    totalProfit: number;
+    numberOfDays: number;
+    ordersCount: number;
+    profitBreakdown: {
+      totalSales: number;
+      totalCost: number;
+      totalCommission: number;
+      totalFixedCost: number;
+      netProfit: number;
+    };
+    orderItemsProfit: Array<{
+      orderItemId: string;
+      orderId: string;
+      itemName?: string;
+      serviceName?: string;
+      sales: number;
+      totalCost: number;
+      commission: number;
+      fixedCostAllocation: number;
+      profit: number;
+      profitBreakdown: {
+        sales: number;
+        cost: number;
+        commission: number;
+        fixedCost: number;
+        netProfit: number;
+      };
+    }>;
+  }> {
+    // Build the same query as findAll method
+    const queryBuilder = this.orderRepository
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.customer', 'customer')
+      .leftJoinAndSelect('order.orderItems', 'orderItems')
+      .leftJoinAndSelect('orderItems.item', 'orderItemsItem')
+      .leftJoinAndSelect('orderItems.pricing', 'orderItemsPricing')
+      .leftJoinAndSelect('order.paymentTerm', 'paymentTerm')
+      .leftJoinAndSelect('paymentTerm.transactions', 'paymentTransactions')
+      .leftJoinAndSelect('order.commission', 'commission')
+      .leftJoinAndSelect('commission.transactions', 'commissionTransactions')
+      .leftJoinAndSelect('order.salesPartner', 'salesPartner');
+
+    // Handle search filter
+    if (search) {
+      queryBuilder.where(
+        '(order.id LIKE :search OR order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search OR orderItems.description LIKE :search OR paymentTransactions.reference LIKE :search OR commissionTransactions.reference LIKE :search OR salesPartner.fullName LIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    // Handle date range filter
+    if (startDate && endDate) {
+      queryBuilder.andWhere('order.orderDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
+    }
+
+    // Collect the provided item names into an array
+    const orderItemNames = [item1, item2, item3].filter(Boolean);
+
+    // Handle order item names filter
+    if (orderItemNames.length > 0) {
+      const itemConditions = orderItemNames.map((name, index) => 
+        `orderItemsItem.name LIKE :item${index}`
+      ).join(' OR ');
+      
+      queryBuilder.andWhere(`(${itemConditions})`);
+      
+      orderItemNames.forEach((name, index) => {
+        queryBuilder.setParameter(`item${index}`, `%${name}%`);
+      });
+    }
+
+    const orders = await queryBuilder.getMany();
+
+    // Calculate total daily fixed cost for the date range
+    let totalDailyFixedCost = 0;
+    let numberOfDays = 0;
+
+    if (startDate && endDate) {
+      totalDailyFixedCost = await this.getTotalDailyFixedCostForDateRange(
+        new Date(startDate),
+        new Date(endDate)
+      );
+      
+      // Calculate number of days
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const timeDiff = end.getTime() - start.getTime();
+      numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+    } else {
+      // If no date range, use single day
+      totalDailyFixedCost = await this.getTotalDailyFixedCost();
+      numberOfDays = 1;
+    }
+
+    let totalSales = 0;
+    let totalCost = 0;
+    let totalCommission = 0;
+    const orderItemsProfit = [];
+
+    // Process each order
+    for (const order of orders) {
+      for (const orderItem of order.orderItems) {
+        const sales = orderItem.sales;
+        const cost = orderItem.totalCost;
+        
+        // Calculate commission for this order item (proportional to sales)
+        const orderTotalSales = order.orderItems.reduce((sum, item) => sum + item.sales, 0);
+        const orderTotalCommission = order.commission?.reduce((sum, comm) => 
+          sum + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
+        
+        const commissionAmount = orderTotalSales > 0 ? (sales / orderTotalSales) * orderTotalCommission : 0;
+        
+        // Calculate profit per order item (without fixed cost since we'll distribute it)
+        const itemProfit = sales - cost - commissionAmount;
+
+        totalSales += sales;
+        totalCost += cost;
+        totalCommission += commissionAmount;
+
+        orderItemsProfit.push({
+          orderItemId: orderItem.id,
+          orderId: order.id,
+          itemName: orderItem.item?.name,
+          serviceName: orderItem.service?.name,
+          sales,
+          totalCost: cost,
+          commission: commissionAmount,
+          fixedCostAllocation: 0, // Will be calculated later
+          profit: Math.max(0, itemProfit),
+          profitBreakdown: {
+            sales,
+            cost,
+            commission: commissionAmount,
+            fixedCost: 0, // Will be calculated later
+            netProfit: Math.max(0, itemProfit)
+          }
+        });
+      }
+    }
+
+    // Distribute the total daily fixed cost proportionally among all order items
+    if (orderItemsProfit.length > 0) {
+      const totalProfitBeforeFixedCost = totalSales - totalCost - totalCommission;
+      
+      if (totalProfitBeforeFixedCost > 0) {
+        const fixedCostPerProfitUnit = totalDailyFixedCost / totalProfitBeforeFixedCost;
+
+        // Apply fixed cost to each order item proportionally
+        orderItemsProfit.forEach(item => {
+          const itemProfitBeforeFixedCost = item.sales - item.totalCost - item.commission;
+          const fixedCostForItem = itemProfitBeforeFixedCost > 0 ? 
+            itemProfitBeforeFixedCost * fixedCostPerProfitUnit : 0;
+          
+          item.fixedCostAllocation = fixedCostForItem;
+          item.profit = Math.max(0, itemProfitBeforeFixedCost - fixedCostForItem);
+          item.profitBreakdown.fixedCost = fixedCostForItem;
+          item.profitBreakdown.netProfit = item.profit;
+        });
+      } else {
+        // If no profit before fixed cost, distribute fixed cost equally among all items
+        const fixedCostPerItem = totalDailyFixedCost / orderItemsProfit.length;
+        orderItemsProfit.forEach(item => {
+          item.fixedCostAllocation = fixedCostPerItem;
+          item.profit = Math.max(0, item.sales - item.totalCost - item.commission - fixedCostPerItem);
+          item.profitBreakdown.fixedCost = fixedCostPerItem;
+          item.profitBreakdown.netProfit = item.profit;
+        });
+      }
+    }
+
+    const totalProfit = totalSales - totalCost - totalCommission - totalDailyFixedCost;
+
+    return {
+      totalSales,
+      totalCost,
+      totalCommission,
+      totalDailyFixedCost,
+      totalProfit: Math.max(0, totalProfit),
+      numberOfDays,
+      ordersCount: orders.length,
+      profitBreakdown: {
+        totalSales,
+        totalCost,
+        totalCommission,
+        totalFixedCost: totalDailyFixedCost,
+        netProfit: Math.max(0, totalProfit)
+      },
+      orderItemsProfit
+    };
+  }
+
+  // Generate company report in Excel format
+  async generateCompanyReport(
+    skip: number = 0,
+    take: number = 10,
+    startDate?: string,
+    endDate?: string,
+    search?: string,
+    item1?: string,
+    item2?: string,
+    item3?: string
+  ): Promise<{
+    reportData: Array<{
+      date: string;
+      customerName: string;
+      unit: number; // width * height
+      quantity: number;
+      metersquare: number; // width * height * quantity
+      costPrice: number;
+      totalCost: number; // metersquare * costPrice
+      sellingPrice: number;
+      sales: number; // metersquare * sellingPrice
+      commission: number;
+      dailyFixedCost: number;
+      dailyFixedCostPerDay: number; // Total daily fixed cost for the entire day
+      profit: number;
+      orderId: string;
+      itemName: string;
+      serviceName: string;
+      uom: {
+        id: string;
+        name: string;
+        abbreviation: string;
+        conversionRate: number;
+      };
+      baseUom: {
+        id: string;
+        name: string;
+        abbreviation: string;
+        conversionRate: number;
+      };
+    }>;
+    totals: {
+      totalQuantity: number;
+      totalMetersquare: number;
+      totalCost: number;
+      totalSales: number;
+      totalCommission: number;
+      totalDailyFixedCost: number;
+      totalProfit: number;
+      numberOfDays: number;
+      ordersCount: number;
+    };
+    pagination: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    // Build the same query as findAll method
+    const queryBuilder = this.orderRepository
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.customer', 'customer')
+      .leftJoinAndSelect('order.orderItems', 'orderItems')
+      .leftJoinAndSelect('orderItems.item', 'orderItemsItem')
+      .leftJoinAndSelect('orderItems.service', 'orderItemsService')
+      .leftJoinAndSelect('orderItems.pricing', 'orderItemsPricing')
+      .leftJoinAndSelect('orderItems.uom', 'orderItemsUom')
+      .leftJoinAndSelect('orderItems.baseUom', 'orderItemsBaseUom')
+      .leftJoinAndSelect('order.paymentTerm', 'paymentTerm')
+      .leftJoinAndSelect('paymentTerm.transactions', 'paymentTransactions')
+      .leftJoinAndSelect('order.commission', 'commission')
+      .leftJoinAndSelect('commission.transactions', 'commissionTransactions')
+      .leftJoinAndSelect('order.salesPartner', 'salesPartner');
+
+    // Handle search filter
+    if (search) {
+      queryBuilder.where(
+        '(order.id LIKE :search OR order.series LIKE :search OR customer.fullName LIKE :search OR customer.phone LIKE :search OR orderItems.description LIKE :search OR paymentTransactions.reference LIKE :search OR commissionTransactions.reference LIKE :search OR salesPartner.fullName LIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    // Handle date range filter
+    if (startDate && endDate) {
+      queryBuilder.andWhere('order.orderDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
+    }
+
+    // Collect the provided item names into an array
+    const orderItemNames = [item1, item2, item3].filter(Boolean);
+
+    // Handle order item names filter
+    if (orderItemNames.length > 0) {
+      const itemConditions = orderItemNames.map((name, index) => 
+        `orderItemsItem.name LIKE :item${index}`
+      ).join(' OR ');
+      
+      queryBuilder.andWhere(`(${itemConditions})`);
+      
+      orderItemNames.forEach((name, index) => {
+        queryBuilder.setParameter(`item${index}`, `%${name}%`);
+      });
+    }
+
+    const orders = await queryBuilder.getMany();
+
+    // Get daily fixed cost (not total for the period)
+    const dailyFixedCost = await this.getTotalDailyFixedCost();
+    
+    // Calculate number of days in the date range
+    let numberOfDays = 1;
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const timeDiff = end.getTime() - start.getTime();
+      numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+    }
+    
+    // Group orders by date (YYYY-MM-DD)
+    const ordersByDate: Record<string, typeof orders> = {};
+    for (const order of orders) {
+      const dateKey = order.orderDate.toISOString().split('T')[0];
+      if (!ordersByDate[dateKey]) ordersByDate[dateKey] = [];
+      ordersByDate[dateKey].push(order);
+    }
+
+    const allReportData = [];
+    let totalQuantity = 0;
+    let totalMetersquare = 0;
+    let totalCost = 0;
+    let totalSales = 0;
+    let totalCommission = 0;
+    let totalDailyFixedCost = 0;
+
+    // For each day, distribute that day's fixed cost among that day's orders
+    for (const [dateKey, ordersOfDay] of Object.entries(ordersByDate)) {
+      // Gather all order items for the day
+      const dayOrderItems = ordersOfDay.flatMap(order => order.orderItems.map(item => ({ order, orderItem: item })));
+      // Calculate total profit before fixed cost for the day
+      const dayTotalProfitBeforeFixedCost = dayOrderItems.reduce((sum, { order, orderItem }) => {
+        const unit = (orderItem.width || 0) * (orderItem.height || 0);
+        const metersquare = unit * orderItem.quantity;
+        const pricing = orderItem.pricing;
+        if (!pricing) return sum;
+        const totalCostForItem = metersquare * (pricing.costPrice || 0);
+        const salesForItem = metersquare * pricing.sellingPrice;
+        const orderTotalSales = order.orderItems.reduce((s, item) => {
+          const itemUnit = (item.width || 0) * (item.height || 0);
+          const itemMetersquare = itemUnit * item.quantity;
+          const itemPricing = item.pricing;
+          return s + (itemMetersquare * (itemPricing?.sellingPrice || 0));
+        }, 0);
+        const orderTotalCommission = order.commission?.reduce((s, comm) => s + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
+        const commissionAmount = orderTotalSales > 0 ? (salesForItem / orderTotalSales) * orderTotalCommission : 0;
+        return sum + (salesForItem - totalCostForItem - commissionAmount);
+      }, 0);
+      // For each order item, calculate its share of the fixed cost for the day
+      for (const { order, orderItem } of dayOrderItems) {
+        const unit = (orderItem.width || 0) * (orderItem.height || 0);
+        const metersquare = unit * orderItem.quantity;
+        const pricing = orderItem.pricing;
+        if (!pricing) continue;
+        const totalCostForItem = metersquare * (pricing.costPrice || 0);
+        const salesForItem = metersquare * pricing.sellingPrice;
+        const orderTotalSales = order.orderItems.reduce((s, item) => {
+          const itemUnit = (item.width || 0) * (item.height || 0);
+          const itemMetersquare = itemUnit * item.quantity;
+          const itemPricing = item.pricing;
+          return s + (itemMetersquare * (itemPricing?.sellingPrice || 0));
+        }, 0);
+        const orderTotalCommission = order.commission?.reduce((s, comm) => s + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
+        const commissionAmount = orderTotalSales > 0 ? (salesForItem / orderTotalSales) * orderTotalCommission : 0;
+        const profitBeforeFixedCost = salesForItem - totalCostForItem - commissionAmount;
+        // Proportional allocation for the day
+        const dailyFixedCostAllocation = dayTotalProfitBeforeFixedCost > 0 ? (profitBeforeFixedCost / dayTotalProfitBeforeFixedCost) * dailyFixedCost : 0;
+        const profit = profitBeforeFixedCost - dailyFixedCostAllocation;
+        allReportData.push({
+          date: dateKey,
+          customerName: order.customer?.fullName || 'Unknown',
+          unit: unit,
+          quantity: orderItem.quantity,
+          metersquare: metersquare,
+          costPrice: pricing.costPrice || 0,
+          totalCost: totalCostForItem,
+          sellingPrice: pricing.sellingPrice,
+          sales: salesForItem,
+          commission: commissionAmount,
+          dailyFixedCost: dailyFixedCostAllocation,
+          dailyFixedCostPerDay: dailyFixedCost,
+          profit: Math.max(0, profit),
+          orderId: order.id,
+          itemName: orderItem.item?.name || 'Unknown',
+          serviceName: orderItem.service?.name || 'Unknown',
+          uom: {
+            id: orderItem.uom?.id || '',
+            name: orderItem.uom?.name || 'Unknown',
+            abbreviation: orderItem.uom?.abbreviation || '',
+            conversionRate: orderItem.uom?.conversionRate || 0
+          },
+          baseUom: {
+            id: orderItem.baseUom?.id || '',
+            name: orderItem.baseUom?.name || 'Unknown',
+            abbreviation: orderItem.baseUom?.abbreviation || '',
+            conversionRate: orderItem.baseUom?.conversionRate || 0
+          }
+        });
+        totalQuantity += orderItem.quantity;
+        totalMetersquare += metersquare;
+        totalCost += totalCostForItem;
+        totalSales += salesForItem;
+        totalCommission += commissionAmount;
+      }
+      totalDailyFixedCost += dailyFixedCost;
+    }
+
+    // Apply pagination
+    const totalItems = allReportData.length;
+    const page = Math.floor(skip / take) + 1;
+    const totalPages = Math.ceil(totalItems / take);
+    const reportData = allReportData.slice(skip, skip + take);
+
+    const totals = {
+      totalQuantity,
+      totalMetersquare,
+      totalCost,
+      totalSales,
+      totalCommission,
+      totalDailyFixedCost,
+      totalProfit: totalSales - totalCost - totalCommission - totalDailyFixedCost,
+      numberOfDays,
+      ordersCount: orders.length
+    };
+
+    const pagination = {
+      page,
+      limit: take,
+      totalItems,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1
+    };
+
+    return {
+      reportData,
+      totals,
+      pagination
+    };
   }
 }

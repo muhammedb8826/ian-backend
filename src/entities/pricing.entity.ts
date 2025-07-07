@@ -19,6 +19,9 @@ export class Pricing {
   @Column('float')
   sellingPrice: number;
 
+  @Column('float')
+  costPrice: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

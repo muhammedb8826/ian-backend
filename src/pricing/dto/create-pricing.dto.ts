@@ -10,6 +10,9 @@ export class CreatePricingDto {
     @IsNumber()
     sellingPrice: number;
 
+    @IsNumber()
+    costPrice: number;
+
     constant: boolean;
     width? : number;
     height? : number;

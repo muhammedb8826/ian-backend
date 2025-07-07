@@ -9,6 +9,7 @@ export class PricingController {
 
   @Post()
   create(@Body() createPricingDto: CreatePricingDto) {
+    console.log(createPricingDto)
     return this.pricingService.create(createPricingDto);
   }
 

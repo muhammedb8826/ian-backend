@@ -1,5 +1,4 @@
 import { DataSource } from 'typeorm';
-import * as entities from './src/entities';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -12,8 +11,8 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  entities: Object.values(entities),
-  migrations: ['src/migrations/*.ts'],
+  entities: ['dist/src/entities/*.js'],
+  migrations: ['dist/src/migrations/*.js'],
   synchronize: false,
   logging: true,
 }); 

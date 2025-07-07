@@ -40,6 +40,9 @@ export class UOM {
   @OneToMany(() => OrderItems, orderItems => orderItems.uom)
   orderItems: OrderItems[];
 
+  @OneToMany(() => OrderItems, baseOrderItems => baseOrderItems.baseUom)
+  baseOrderItems: OrderItems[];
+
   @OneToMany(() => Pricing, pricing => pricing.uom)
   pricing: Pricing[];
 

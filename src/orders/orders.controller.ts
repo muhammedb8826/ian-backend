@@ -65,4 +65,53 @@ export class OrdersController {
   async remove(@Param('id') id: string) {
     return this.ordersService.remove(id);
   }
+
+  @Get(':id/profit')
+  async calculateProfit(@Param('id') id: string) {
+    return this.ordersService.calculateOrderProfit(id);
+  }
+
+  @Get('profit/filtered')
+  async calculateFilteredProfit(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
+    @Query('item1') item1?: string,
+    @Query('item2') item2?: string,
+    @Query('item3') item3?: string,
+  ) {
+    return this.ordersService.calculateFilteredOrdersProfit(
+      startDate,
+      endDate,
+      search,
+      item1,
+      item2,
+      item3
+    );
+  }
+
+  @Get('report/company')
+  async generateCompanyReport(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
+    @Query('item1') item1?: string,
+    @Query('item2') item2?: string,
+    @Query('item3') item3?: string,
+  ) {
+    const skip = (page - 1) * limit
+    const take = limit
+    return this.ordersService.generateCompanyReport(
+      skip,
+      take,
+      startDate,
+      endDate,
+      search,
+      item1,
+      item2,
+      item3
+    );
+  }
 }

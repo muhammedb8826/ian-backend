@@ -72,6 +72,12 @@ export class OrderItems {
   @Column('float')
   unit: number;
 
+  @Column('float', { default: 0 })
+  totalCost: number;
+
+  @Column('float', { default: 0 })
+  sales: number;
+
   @OneToMany(() => OrderItemNotes, orderItemNotes => orderItemNotes.orderItem)
   orderItemNotes: OrderItemNotes[];
 
@@ -90,6 +96,10 @@ export class OrderItems {
   @ManyToOne(() => UOM, uom => uom.orderItems)
   @JoinColumn({ name: 'uomId' })
   uom: UOM;
+
+  @ManyToOne(() => UOM, baseUom => baseUom.baseOrderItems)
+  @JoinColumn({ name: 'baseUomId' })
+  baseUom: UOM;
 
   @ManyToOne(() => Service, service => service.orderItems)
   @JoinColumn({ name: 'serviceId' })

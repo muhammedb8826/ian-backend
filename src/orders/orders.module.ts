@@ -9,6 +9,10 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { PaymentTransaction } from 'src/entities/payment-transaction.entity';
 import { Commission } from 'src/entities/commission.entity';
 import { CommissionTransaction } from 'src/entities/commission-transaction.entity';
+import { FixedCost } from 'src/entities/fixed-cost.entity';
+import { Item } from 'src/entities/item.entity';
+import { UOM } from 'src/entities/uom.entity';
+import { UnitCategory } from 'src/entities/unit-category.entity';
 
 @Module({
   imports: [
@@ -19,7 +23,11 @@ import { CommissionTransaction } from 'src/entities/commission-transaction.entit
       PaymentTerm, 
       PaymentTransaction, 
       Commission, 
-      CommissionTransaction
+      CommissionTransaction,
+      FixedCost,
+      Item,
+      UOM,
+      UnitCategory
     ])
   ],
   controllers: [OrdersController],

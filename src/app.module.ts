@@ -47,6 +47,7 @@ import { MachinesController } from './machines/machines.controller';
 
 // Config
 import { createDatabaseConfig } from './config/database.config';
+import { FixedCostModule } from './fixed-cost/fixed-cost.module';
 import configuration from './config/configuration';
 
 
@@ -95,6 +96,7 @@ import configuration from './config/configuration';
     VendorsModule,
     PaymentTermsModule,
     PaymentTransactionsModule,
+    FixedCostModule,
   ],
   providers: [
     // Global Guards
