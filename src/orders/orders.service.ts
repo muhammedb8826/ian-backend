@@ -1031,32 +1031,13 @@ export class OrdersService {
     return { sales, unit, baseUomId };
   }
 
-  // Get total daily fixed cost
+  // Get total daily fixed cost (always sum dailyFixedCost, ignore monthly)
   private async getTotalDailyFixedCost(): Promise<number> {
     const fixedCosts = await this.fixedCostRepository.find();
-    
-    console.log(`📅 Single day fixed cost calculation:`);
-    
-    // Calculate total daily fixed cost
-    // If monthlyFixedCost is provided, use it to calculate daily cost
-    // Otherwise, use the dailyFixedCost directly
+    // Always sum dailyFixedCost, ignore monthlyFixedCost
     const totalDailyCost = fixedCosts.reduce((total, fixedCost) => {
-      let dailyCost = 0;
-      
-      if (fixedCost.monthlyFixedCost > 0) {
-        // Convert monthly to daily (assuming 30 days per month)
-        dailyCost = fixedCost.monthlyFixedCost / 30;
-        console.log(`💰 ${fixedCost.description}: $${fixedCost.monthlyFixedCost}/month = $${dailyCost.toFixed(2)}/day`);
-      } else {
-        // Use dailyFixedCost directly
-        dailyCost = fixedCost.dailyFixedCost;
-        console.log(`💰 ${fixedCost.description}: $${dailyCost}/day`);
-      }
-      
-      return total + dailyCost;
+      return total + (fixedCost.dailyFixedCost || 0);
     }, 0);
-    
-    console.log(`📊 Total daily fixed cost: $${totalDailyCost.toFixed(2)}`);
     return totalDailyCost;
   }
 
@@ -1507,14 +1488,7 @@ export class OrdersService {
       numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
     }
     
-    // Group orders by date (YYYY-MM-DD)
-    const ordersByDate: Record<string, typeof orders> = {};
-    for (const order of orders) {
-      const dateKey = order.orderDate.toISOString().split('T')[0];
-      if (!ordersByDate[dateKey]) ordersByDate[dateKey] = [];
-      ordersByDate[dateKey].push(order);
-    }
-
+    // Remove grouping by date. Just process all orders in descending order by orderDate.
     const allReportData = [];
     let totalQuantity = 0;
     let totalMetersquare = 0;
@@ -1523,50 +1497,34 @@ export class OrdersService {
     let totalCommission = 0;
     let totalDailyFixedCost = 0;
 
-    // For each day, distribute that day's fixed cost among that day's orders
-    for (const [dateKey, ordersOfDay] of Object.entries(ordersByDate)) {
-      // Gather all order items for the day
-      const dayOrderItems = ordersOfDay.flatMap(order => order.orderItems.map(item => ({ order, orderItem: item })));
-      // Calculate total profit before fixed cost for the day
-      const dayTotalProfitBeforeFixedCost = dayOrderItems.reduce((sum, { order, orderItem }) => {
-        const unit = (orderItem.width || 0) * (orderItem.height || 0);
-        const metersquare = unit * orderItem.quantity;
-        const pricing = orderItem.pricing;
-        if (!pricing) return sum;
-        const totalCostForItem = metersquare * (pricing.costPrice || 0);
-        const salesForItem = metersquare * pricing.sellingPrice;
-        const orderTotalSales = order.orderItems.reduce((s, item) => {
-          const itemUnit = (item.width || 0) * (item.height || 0);
-          const itemMetersquare = itemUnit * item.quantity;
-          const itemPricing = item.pricing;
-          return s + (itemMetersquare * (itemPricing?.sellingPrice || 0));
-        }, 0);
-        const orderTotalCommission = order.commission?.reduce((s, comm) => s + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
-        const commissionAmount = orderTotalSales > 0 ? (salesForItem / orderTotalSales) * orderTotalCommission : 0;
-        return sum + (salesForItem - totalCostForItem - commissionAmount);
-      }, 0);
-      // For each order item, calculate its share of the fixed cost for the day
-      for (const { order, orderItem } of dayOrderItems) {
+    // Process each order and its items (orders are already sorted by orderDate DESC)
+    for (const order of orders) {
+      for (const orderItem of order.orderItems) {
         const unit = (orderItem.width || 0) * (orderItem.height || 0);
         const metersquare = unit * orderItem.quantity;
         const pricing = orderItem.pricing;
         if (!pricing) continue;
+
         const totalCostForItem = metersquare * (pricing.costPrice || 0);
         const salesForItem = metersquare * pricing.sellingPrice;
+        
         const orderTotalSales = order.orderItems.reduce((s, item) => {
           const itemUnit = (item.width || 0) * (item.height || 0);
           const itemMetersquare = itemUnit * item.quantity;
           const itemPricing = item.pricing;
           return s + (itemMetersquare * (itemPricing?.sellingPrice || 0));
         }, 0);
-        const orderTotalCommission = order.commission?.reduce((s, comm) => s + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
+        
+        const orderTotalCommission = order.commission?.reduce((s, comm) => 
+          s + comm.transactions.reduce((tSum, trans) => tSum + trans.amount, 0), 0) || 0;
+        
         const commissionAmount = orderTotalSales > 0 ? (salesForItem / orderTotalSales) * orderTotalCommission : 0;
+        
+        // Profit before fixed costs (no allocation)
         const profitBeforeFixedCost = salesForItem - totalCostForItem - commissionAmount;
-        // Proportional allocation for the day
-        const dailyFixedCostAllocation = dayTotalProfitBeforeFixedCost > 0 ? (profitBeforeFixedCost / dayTotalProfitBeforeFixedCost) * dailyFixedCost : 0;
-        const profit = profitBeforeFixedCost - dailyFixedCostAllocation;
+
         allReportData.push({
-          date: dateKey,
+          date: order.orderDate.toISOString().split('T')[0],
           customerName: order.customer?.fullName || 'Unknown',
           unit: unit,
           quantity: orderItem.quantity,
@@ -1576,9 +1534,9 @@ export class OrdersService {
           sellingPrice: pricing.sellingPrice,
           sales: salesForItem,
           commission: commissionAmount,
-          dailyFixedCost: dailyFixedCostAllocation,
+          dailyFixedCost: 0, // No allocation per item
           dailyFixedCostPerDay: dailyFixedCost,
-          profit: Math.max(0, profit),
+          profit: Math.max(0, profitBeforeFixedCost), // Profit before fixed costs
           orderId: order.id,
           itemName: orderItem.item?.name || 'Unknown',
           serviceName: orderItem.service?.name || 'Unknown',
@@ -1595,6 +1553,7 @@ export class OrdersService {
             conversionRate: orderItem.baseUom?.conversionRate || 0
           }
         });
+
         totalQuantity += orderItem.quantity;
         totalMetersquare += metersquare;
         totalCost += totalCostForItem;
@@ -1604,6 +1563,8 @@ export class OrdersService {
       totalDailyFixedCost += dailyFixedCost;
     }
 
+    // Sort allReportData by date DESC to ensure correct order
+    allReportData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     // Apply pagination
     const totalItems = allReportData.length;
     const page = Math.floor(skip / take) + 1;

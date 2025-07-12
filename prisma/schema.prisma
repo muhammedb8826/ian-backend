@@ -467,6 +467,14 @@ model commissionTransactions {
   commission    commissions @relation(fields: [commissionId], references: [id], onDelete: Cascade)
 }
 
+model file_path {
+  id          String   @id @default(cuid())
+  filePath    String
+  description String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 enum Role {
   USER
   ADMIN

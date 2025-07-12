@@ -25,4 +25,5 @@ export * from './unit-category.entity';
 export * from './uom.entity';
 export * from './user-machine.entity';
 export * from './user.entity';
-export * from './vendor.entity'; 
+export * from './vendor.entity';
+export * from './file-path.entity'; 
