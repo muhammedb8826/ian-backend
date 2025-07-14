@@ -10,6 +10,9 @@ export class FilePath {
   filePath: string;
 
   @Column()
+  fileType: string;
+
+  @Column()
   description: string;
 
   @CreateDateColumn()

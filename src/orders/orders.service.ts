@@ -1416,6 +1416,7 @@ export class OrdersService {
       totalProfit: number;
       numberOfDays: number;
       ordersCount: number;
+      constantDailyFixedCost: number;
     };
     pagination: {
       page: number;
@@ -1476,7 +1477,7 @@ export class OrdersService {
 
     const orders = await queryBuilder.getMany();
 
-    // Get daily fixed cost (not total for the period)
+    // Get the sum of all daily fixed costs
     const dailyFixedCost = await this.getTotalDailyFixedCost();
     
     // Calculate number of days in the date range
@@ -1485,8 +1486,11 @@ export class OrdersService {
       const start = new Date(startDate);
       const end = new Date(endDate);
       const timeDiff = end.getTime() - start.getTime();
-      numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+      numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
     }
+    
+    // Calculate total fixed cost for the entire period (daily fixed cost × number of days)
+    const totalFixedCostForPeriod = dailyFixedCost * numberOfDays;
     
     // Remove grouping by date. Just process all orders in descending order by orderDate.
     const allReportData = [];
@@ -1495,7 +1499,6 @@ export class OrdersService {
     let totalCost = 0;
     let totalSales = 0;
     let totalCommission = 0;
-    let totalDailyFixedCost = 0;
 
     // Process each order and its items (orders are already sorted by orderDate DESC)
     for (const order of orders) {
@@ -1535,7 +1538,7 @@ export class OrdersService {
           sales: salesForItem,
           commission: commissionAmount,
           dailyFixedCost: 0, // No allocation per item
-          dailyFixedCostPerDay: dailyFixedCost,
+          dailyFixedCostPerDay: dailyFixedCost, // Daily fixed cost per day
           profit: Math.max(0, profitBeforeFixedCost), // Profit before fixed costs
           orderId: order.id,
           itemName: orderItem.item?.name || 'Unknown',
@@ -1560,7 +1563,7 @@ export class OrdersService {
         totalSales += salesForItem;
         totalCommission += commissionAmount;
       }
-      totalDailyFixedCost += dailyFixedCost;
+      // Don't add daily fixed cost per order - it should be calculated for the entire period
     }
 
     // Sort allReportData by date DESC to ensure correct order
@@ -1577,10 +1580,11 @@ export class OrdersService {
       totalCost,
       totalSales,
       totalCommission,
-      totalDailyFixedCost,
-      totalProfit: totalSales - totalCost - totalCommission - totalDailyFixedCost,
+      totalDailyFixedCost: totalFixedCostForPeriod, // Use total fixed cost for the entire period
+      totalProfit: totalSales - totalCost - totalCommission - totalFixedCostForPeriod,
       numberOfDays,
-      ordersCount: orders.length
+      constantDailyFixedCost: dailyFixedCost,
+      ordersCount: reportData.length
     };
 
     const pagination = {

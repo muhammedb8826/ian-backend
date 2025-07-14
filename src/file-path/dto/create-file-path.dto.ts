@@ -8,4 +8,8 @@ export class CreateFilePathDto {
     @IsString()
     @IsNotEmpty()
     description: string;
+
+    @IsString()
+    @IsNotEmpty()
+    fileType: string;
 }
