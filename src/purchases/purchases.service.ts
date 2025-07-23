@@ -178,7 +178,12 @@ export class PurchasesService {
     try {
       // Delete items not in the new list
       if (itemsToDelete.length > 0) {
-        await this.purchaseItemRepository.delete({ id: { in: itemsToDelete } as any });
+        await this.purchaseItemRepository
+          .createQueryBuilder()
+          .delete()
+          .from(PurchaseItems)
+          .where('id IN (:...ids)', { ids: itemsToDelete })
+          .execute();
       }
 
       // Update the purchase (without purchaseItems)

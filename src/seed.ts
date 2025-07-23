@@ -111,7 +111,9 @@ async function seed() {
         console.log(`Fixed cost "${fixedCostData.description}" already exists`);
       }
     }
-
+    console.log(adminData);
+    console.log(existingUser);
+    console.log(fixedCostsData);
     console.log('Seeding completed successfully');
     await AppDataSource.destroy();
   } catch (error) {
