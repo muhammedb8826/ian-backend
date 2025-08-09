@@ -23,15 +23,7 @@ export class VendorsService {
       throw new ConflictException('Vendor already exists');
     }
 
-    const existingByEmail = await this.vendorRepository.findOne({
-      where: {
-        email: createVendorDto.email
-      }
-    });
-
-    if (existingByEmail) {
-      throw new ConflictException('Vendor email already exists');
-    }
+    // Email is now optional and not unique, so no need to check for duplicates
 
     const existingByPhone = await this.vendorRepository.findOne({
       where: {

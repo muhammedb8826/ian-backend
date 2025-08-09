@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Item } from './item.entity';
 import { Order } from './order.entity';
 import { Pricing } from './pricing.entity';
@@ -7,7 +7,6 @@ import { Service } from './service.entity';
 import { OrderItemNotes } from './order-item-notes.entity';
 
 @Entity('order_items')
-@Unique(['orderId', 'itemId', 'serviceId'])
 export class OrderItems {
   @PrimaryGeneratedColumn('uuid')
   id: string;

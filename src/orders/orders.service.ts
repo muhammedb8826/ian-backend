@@ -699,7 +699,7 @@ export class OrdersService {
       await queryRunner.rollbackTransaction();
       
       if (error.code === 'ER_DUP_ENTRY') {
-        throw new ConflictException('Unique constraint violation: An order with the same item and service already exists.');
+        throw new ConflictException('Database constraint violation occurred. Please check your data.');
       }
       
       console.error('Error updating order:', error);
