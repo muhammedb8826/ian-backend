@@ -1,11 +1,20 @@
-import { IsNumber, IsString } from "class-validator";
+import { IsNumber, IsString, IsOptional, IsBoolean } from "class-validator";
 
 export class CreatePricingDto {
     @IsString()
     itemId: string;
 
+    @IsOptional()
     @IsString()
-    serviceId: string;
+    serviceId?: string;
+
+    @IsOptional()
+    @IsString()
+    nonStockServiceId?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    isNonStockService?: boolean;
 
     @IsNumber()
     sellingPrice: number;

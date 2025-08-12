@@ -153,7 +153,7 @@ export class OrderItemsService {
   async findOne(id: string) {
     return this.orderItemsRepository.findOne({
       where: { id },
-      relations: ['order', 'uom', 'pricing', 'item', 'service', 'orderItemNotes', 'orderItemNotes.user'],
+      relations: ['order', 'uom', 'pricing', 'item', 'service', 'nonStockService', 'orderItemNotes', 'orderItemNotes.user'],
     });
   }
 
@@ -174,8 +174,10 @@ export class OrderItemsService {
       }
 
       // Handle stock reduction for Printed or Void status (only when status changes to these states)
+      // Only reduce stock for stock services (not non-stock services like PRINT-ONLY, CUT-ONLY)
       if ((updateOrderItemDto.status === 'Printed' || updateOrderItemDto.status === 'Void') && 
-          currentOrderItem.status !== 'Printed' && currentOrderItem.status !== 'Void') {
+          currentOrderItem.status !== 'Printed' && currentOrderItem.status !== 'Void' &&
+          !currentOrderItem.isNonStockService) {
         
         const operatorStock = await this.operatorStockRepository.findOne({
           where: { itemId: currentOrderItem.itemId },
@@ -200,8 +202,10 @@ export class OrderItemsService {
       }
 
       // Handle stock restoration when status changes from Printed/Void to other states
+      // Only restore stock for stock services (not non-stock services like PRINT-ONLY, CUT-ONLY)
       if ((currentOrderItem.status === 'Printed' || currentOrderItem.status === 'Void') && 
-          updateOrderItemDto.status !== 'Printed' && updateOrderItemDto.status !== 'Void') {
+          updateOrderItemDto.status !== 'Printed' && updateOrderItemDto.status !== 'Void' &&
+          !currentOrderItem.isNonStockService) {
         
         const operatorStock = await this.operatorStockRepository.findOne({
           where: { itemId: currentOrderItem.itemId },

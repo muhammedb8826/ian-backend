@@ -43,6 +43,14 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  // Enable CORS for all origins
+  app.enableCors({
+    origin: true, // Allow all origins
+    credentials: true, // Allow credentials
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  });
+
   const port = process.env.PORT || 8080; // Default to port 3000 if PORT is not set
   await app.listen(port);
   console.log(`Application is running on port ${port}`);

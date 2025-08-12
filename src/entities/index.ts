@@ -21,6 +21,7 @@ export * from './sale-item.entity';
 export * from './sale.entity';
 export * from './sales-partner.entity';
 export * from './service.entity';
+export * from './non-stock-service.entity';
 export * from './unit-category.entity';
 export * from './uom.entity';
 export * from './user-machine.entity';

@@ -2,16 +2,19 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { Public } from '../decorators/public.decorator';
 
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) { }
 
+  @Public()
   @Post()
   create(@Body() createOrderDto: CreateOrderDto) {
     return this.ordersService.create(createOrderDto);
   }
 
+  @Public()
   @Post('debug')
   async debugCreate(@Body() createOrderDto: CreateOrderDto) {
     try {
@@ -46,6 +49,7 @@ export class OrdersController {
     return this.ordersService.findAll(skip, take, search, startDate, endDate, item1, item2, item3);
   }
 
+  @Public()
   @Get('all')
   async findAllOrders() {
     return this.ordersService.findAllOrders();

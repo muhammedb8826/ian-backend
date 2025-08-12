@@ -4,7 +4,9 @@ export class CreateOrderItemDto {
     id: string;
     orderId: string;
     itemId: string;
-    serviceId: string;
+    serviceId?: string;
+    nonStockServiceId?: string;
+    isNonStockService?: boolean;
     width?: number;
     height?: number;
     pricingId: string;

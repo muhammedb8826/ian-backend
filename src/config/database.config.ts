@@ -16,7 +16,7 @@ export const createDatabaseConfig = (
     password: dbConfig?.password || 'mame',
     database: dbConfig?.database || 'ian_backend',
     entities: Object.values(entities),
-    synchronize: dbConfig?.synchronize ?? false, // Always false in production!
+    synchronize: false, // Temporarily disabled to prevent schema conflicts
     logging: dbConfig?.logging ?? ['error'], // Log only errors by default
     migrations: dbConfig?.migrations ? ['dist/migrations/*.js'] : undefined,
     migrationsRun: dbConfig?.migrationsRun || false,

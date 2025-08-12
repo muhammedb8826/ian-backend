@@ -4,6 +4,7 @@ import { Order } from './order.entity';
 import { Pricing } from './pricing.entity';
 import { UOM } from './uom.entity';
 import { Service } from './service.entity';
+import { NonStockService } from './non-stock-service.entity';
 import { OrderItemNotes } from './order-item-notes.entity';
 
 @Entity('order_items')
@@ -17,8 +18,14 @@ export class OrderItems {
   @Column()
   itemId: string;
 
-  @Column()
+  @Column({ nullable: true })
   serviceId: string;
+
+  @Column({ nullable: true })
+  nonStockServiceId: string;
+
+  @Column({ default: false })
+  isNonStockService: boolean;
 
   @Column('float', { nullable: true })
   width: number;
@@ -103,4 +110,8 @@ export class OrderItems {
   @ManyToOne(() => Service, service => service.orderItems)
   @JoinColumn({ name: 'serviceId' })
   service: Service;
+
+  @ManyToOne(() => NonStockService, nonStockService => nonStockService.orderItems)
+  @JoinColumn({ name: 'nonStockServiceId' })
+  nonStockService: NonStockService;
 }

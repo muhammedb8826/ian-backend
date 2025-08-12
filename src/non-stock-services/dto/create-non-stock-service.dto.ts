@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsOptional } from "class-validator"
 
-export class CreateServiceDto {
+export class CreateNonStockServiceDto {
     @IsNotEmpty()
     name: string
 

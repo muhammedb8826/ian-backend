@@ -9,3 +9,10 @@ synchronize=true
 
 JWT_SECRET=super-secret-jwt-key-here
 JWT_RT_SECRET=your-refresh-token-secret-here
+
+# SMTP Configuration for Contact Form
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+CONTACT_EMAIL=contact@yourcompany.com

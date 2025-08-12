@@ -60,9 +60,22 @@ export class OrdersService {
       if (!item.itemId) {
         throw new BadRequestException('Item ID is required for all order items');
       }
-      if (!item.serviceId) {
-        throw new BadRequestException('Service ID is required for all order items');
+      
+      // Check for either serviceId (regular service) or nonStockServiceId (non-stock service)
+      if (!item.serviceId && !item.nonStockServiceId) {
+        throw new BadRequestException('Either Service ID or Non-Stock Service ID is required for all order items');
       }
+      
+      // If it's a non-stock service, ensure isNonStockService is set to true
+      if (item.nonStockServiceId && !item.isNonStockService) {
+        throw new BadRequestException('isNonStockService must be true when nonStockServiceId is provided');
+      }
+      
+      // If it's a regular service, ensure isNonStockService is false or not set
+      if (item.serviceId && item.isNonStockService) {
+        throw new BadRequestException('isNonStockService must be false when serviceId is provided');
+      }
+      
       if (!item.pricingId) {
         throw new BadRequestException('Pricing ID is required for all order items');
       }
@@ -116,29 +129,36 @@ export class OrdersService {
         const height = item.height ? parseFloat(item.height.toString()) : null;
         const quantity = parseFloat((item.quantity || 0).toString());
 
+        // Determine which service ID to use for calculations
+        const serviceIdForCalculation = item.isNonStockService ? item.nonStockServiceId : item.serviceId;
+
         // Calculate totalCost and sales using the new methods
         const totalCostResult = await this.calculateTotalCost(
           item.itemId,
-          item.serviceId,
+          serviceIdForCalculation,
           item.uomId,
           width,
           height,
-          quantity
+          quantity,
+          item.isNonStockService
         );
 
         const salesResult = await this.calculateSales(
           item.itemId,
-          item.serviceId,
+          serviceIdForCalculation,
           item.uomId,
           width,
           height,
-          quantity
+          quantity,
+          item.isNonStockService
         );
 
         return this.orderItemsRepository.create({
           orderId: savedOrder.id,
           itemId: item.itemId,
-          serviceId: item.serviceId,
+          serviceId: item.isNonStockService ? null : item.serviceId,
+          nonStockServiceId: item.isNonStockService ? item.nonStockServiceId : null,
+          isNonStockService: item.isNonStockService || false,
           width: width,
           height: height,
           discount: parseFloat((item.discount || 0).toString()),
@@ -287,6 +307,8 @@ export class OrdersService {
       .leftJoinAndSelect('order.orderItems', 'orderItems')
       .leftJoinAndSelect('orderItems.item', 'orderItemsItem')
       .leftJoinAndSelect('orderItems.pricing', 'orderItemsPricing')
+      .leftJoinAndSelect('orderItems.service', 'orderItemsService')
+      .leftJoinAndSelect('orderItems.nonStockService', 'orderItemsNonStockService')
       .leftJoinAndSelect('order.paymentTerm', 'paymentTerm')
       .leftJoinAndSelect('paymentTerm.transactions', 'paymentTransactions')
       .leftJoinAndSelect('order.commission', 'commission')
@@ -337,6 +359,8 @@ export class OrdersService {
       .leftJoin('order.orderItems', 'orderItems')
       .leftJoin('orderItems.item', 'orderItemsItem')
       .leftJoin('orderItems.pricing', 'orderItemsPricing')
+      .leftJoin('orderItems.service', 'orderItemsService')
+      .leftJoin('orderItems.nonStockService', 'orderItemsNonStockService')
       .leftJoin('order.paymentTerm', 'paymentTerm')
       .leftJoin('paymentTerm.transactions', 'paymentTransactions')
       .leftJoin('order.commission', 'commission')
@@ -387,6 +411,8 @@ export class OrdersService {
         'customer', 
         'orderItems', 
         'orderItems.pricing',
+        'orderItems.service',
+        'orderItems.nonStockService',
         'paymentTerm', 
         'paymentTerm.transactions',
         'commission', 
@@ -410,6 +436,8 @@ export class OrdersService {
         'customer', 
         'orderItems', 
         'orderItems.pricing',
+        'orderItems.service',
+        'orderItems.nonStockService',
         'paymentTerm', 
         'paymentTerm.transactions',
         'commission', 
@@ -827,10 +855,17 @@ export class OrdersService {
       throw new BadRequestException(`UOM ${uomId} not found for item ${itemId}`);
     }
 
-    // Get pricing
-    const pricing = await this.pricingRepository.findOne({
-      where: { itemId, serviceId }
+    // Get pricing - check for both regular service and non-stock service
+    let pricing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId, isNonStockService: false }
     });
+
+    if (!pricing) {
+      // Try to find non-stock service pricing using nonStockServiceId
+      pricing = await this.pricingRepository.findOne({
+        where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
+      });
+    }
 
     if (!pricing || pricing.sellingPrice <= 0) {
       throw new BadRequestException(`Pricing not found or invalid for item ${itemId} and service ${serviceId}`);
@@ -897,10 +932,17 @@ export class OrdersService {
       throw new BadRequestException(`UOM ${uomId} not found for item ${itemId}`);
     }
 
-    // Get pricing
-    const pricing = await this.pricingRepository.findOne({
-      where: { itemId, serviceId }
+    // Get pricing - check for both regular service and non-stock service
+    let pricing = await this.pricingRepository.findOne({
+      where: { itemId, serviceId, isNonStockService: false }
     });
+
+    if (!pricing) {
+      // Try to find non-stock service pricing using nonStockServiceId
+      pricing = await this.pricingRepository.findOne({
+        where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
+      });
+    }
 
     if (!pricing || pricing.sellingPrice <= 0) {
       throw new BadRequestException(`Pricing not found or invalid for item ${itemId} and service ${serviceId}`);
@@ -940,7 +982,8 @@ export class OrdersService {
     uomId: string,
     width: number | null,
     height: number | null,
-    quantity: number
+    quantity: number,
+    isNonStockService: boolean = false
   ): Promise<{ totalCost: number; unit: number; baseUomId: string }> {
     // Get item to check if it's constant or not
     const item = await this.itemRepository.findOne({
@@ -952,10 +995,19 @@ export class OrdersService {
       throw new BadRequestException(`Item or unit category not found for item ${itemId}`);
     }
 
-    // Get pricing for cost price
-    const pricing = await this.pricingRepository.findOne({
-      where: { itemId, serviceId }
-    });
+    // Get pricing based on whether it's a non-stock service or regular service
+    let pricing;
+    if (isNonStockService) {
+      // For non-stock services, look for pricing with nonStockServiceId
+      pricing = await this.pricingRepository.findOne({
+        where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
+      });
+    } else {
+      // For regular services, look for pricing with serviceId
+      pricing = await this.pricingRepository.findOne({
+        where: { itemId, serviceId, isNonStockService: false }
+      });
+    }
 
     if (!pricing) {
       throw new BadRequestException(`Pricing not found for item ${itemId} and service ${serviceId}`);
@@ -989,7 +1041,8 @@ export class OrdersService {
     uomId: string,
     width: number | null,
     height: number | null,
-    quantity: number
+    quantity: number,
+    isNonStockService: boolean = false
   ): Promise<{ sales: number; unit: number; baseUomId: string }> {
     // Get item to check if it's constant or not
     const item = await this.itemRepository.findOne({
@@ -1016,10 +1069,19 @@ export class OrdersService {
       baseUomId = result.baseUomId;
     }
 
-    // Get pricing for selling price
-    const pricing = await this.pricingRepository.findOne({
-      where: { itemId, serviceId }
-    });
+    // Get pricing based on whether it's a non-stock service or regular service
+    let pricing;
+    if (isNonStockService) {
+      // For non-stock services, look for pricing with nonStockServiceId
+      pricing = await this.pricingRepository.findOne({
+        where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
+      });
+    } else {
+      // For regular services, look for pricing with serviceId
+      pricing = await this.pricingRepository.findOne({
+        where: { itemId, serviceId, isNonStockService: false }
+      });
+    }
 
     if (!pricing) {
       throw new BadRequestException(`Pricing not found for item ${itemId} and service ${serviceId}`);
