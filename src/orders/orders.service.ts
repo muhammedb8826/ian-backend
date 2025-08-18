@@ -132,26 +132,37 @@ export class OrdersService {
         // Determine which service ID to use for calculations
         const serviceIdForCalculation = item.isNonStockService ? item.nonStockServiceId : item.serviceId;
 
-        // Calculate totalCost and sales using the new methods
-        const totalCostResult = await this.calculateTotalCost(
-          item.itemId,
-          serviceIdForCalculation,
-          item.uomId,
-          width,
-          height,
-          quantity,
-          item.isNonStockService
-        );
+        // Only calculate pricing if service information is provided
+        let totalCostResult = { totalCost: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
+        let salesResult = { sales: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
 
-        const salesResult = await this.calculateSales(
-          item.itemId,
-          serviceIdForCalculation,
-          item.uomId,
-          width,
-          height,
-          quantity,
-          item.isNonStockService
-        );
+        if (serviceIdForCalculation) {
+          try {
+            // Calculate totalCost and sales using the new methods
+            totalCostResult = await this.calculateTotalCost(
+              item.itemId,
+              serviceIdForCalculation,
+              item.uomId,
+              width,
+              height,
+              quantity,
+              item.isNonStockService
+            );
+
+            salesResult = await this.calculateSales(
+              item.itemId,
+              serviceIdForCalculation,
+              item.uomId,
+              width,
+              height,
+              quantity,
+              item.isNonStockService
+            );
+          } catch (error) {
+            console.warn(`Pricing calculation failed for item ${item.itemId}:`, error.message);
+            // Continue with default values if pricing calculation fails
+          }
+        }
 
         return this.orderItemsRepository.create({
           orderId: savedOrder.id,
@@ -172,10 +183,10 @@ export class OrdersService {
           isDiscounted: item.isDiscounted || false,
           status: item.status,
           pricingId: item.pricingId,
-          unit: totalCostResult.unit, // Use calculated unit
-          baseUomId: totalCostResult.baseUomId, // Use calculated baseUomId
-          totalCost: totalCostResult.totalCost,
-          sales: salesResult.sales,
+          unit: totalCostResult.unit || parseFloat((item.unit || 0).toString()),
+          baseUomId: totalCostResult.baseUomId || item.baseUomId || item.uomId,
+          totalCost: totalCostResult.totalCost || 0,
+          sales: salesResult.sales || 0,
         });
       }));
 
@@ -553,30 +564,49 @@ export class OrdersService {
         const height = item.height !== null ? parseFloat(item.height.toString()) : null;
         const quantity = parseFloat((item.quantity || 0).toString());
 
-        // Calculate totalCost and sales using the new methods
-        const totalCostResult = await this.calculateTotalCost(
-          item.itemId,
-          item.serviceId,
-          item.uomId,
-          width,
-          height,
-          quantity
-        );
+        // Determine if this is a non-stock service
+        const isNonStockService = item.isNonStockService || !!item.nonStockServiceId;
+        const serviceId = isNonStockService ? item.nonStockServiceId : item.serviceId;
 
-        const salesResult = await this.calculateSales(
-          item.itemId,
-          item.serviceId,
-          item.uomId,
-          width,
-          height,
-          quantity
-        );
+        // Only calculate pricing if service information is provided
+        let totalCostResult = { totalCost: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
+        let salesResult = { sales: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
+
+        if (serviceId) {
+          try {
+            // Calculate totalCost and sales using the new methods
+            totalCostResult = await this.calculateTotalCost(
+              item.itemId,
+              serviceId,
+              item.uomId,
+              width,
+              height,
+              quantity,
+              isNonStockService
+            );
+
+            salesResult = await this.calculateSales(
+              item.itemId,
+              serviceId,
+              item.uomId,
+              width,
+              height,
+              quantity,
+              isNonStockService
+            );
+          } catch (error) {
+            console.warn(`Pricing calculation failed for item ${item.itemId}:`, error.message);
+            // Continue with default values if pricing calculation fails
+          }
+        }
 
         if (item.id) {
           // Update existing order item
           await queryRunner.manager.update(OrderItems, item.id, {
             itemId: item.itemId,
-            serviceId: item.serviceId,
+            serviceId: isNonStockService ? null : item.serviceId,
+            nonStockServiceId: isNonStockService ? item.nonStockServiceId : null,
+            isNonStockService: isNonStockService,
             width: width,
             height: height,
             discount: parseFloat((item.discount || 0).toString()),
@@ -590,17 +620,19 @@ export class OrdersService {
             isDiscounted: item.isDiscounted || false,
             status: item.status,
             pricingId: item.pricingId,
-            unit: totalCostResult.unit, // Use calculated unit
-            baseUomId: totalCostResult.baseUomId, // Use calculated baseUomId
-            totalCost: totalCostResult.totalCost,
-            sales: salesResult.sales,
+            unit: totalCostResult.unit || parseFloat((item.unit || 0).toString()),
+            baseUomId: totalCostResult.baseUomId || item.baseUomId || item.uomId,
+            totalCost: totalCostResult.totalCost || 0,
+            sales: salesResult.sales || 0,
           });
         } else {
           // Create new order item
           await queryRunner.manager.save(OrderItems, {
             orderId: id,
             itemId: item.itemId,
-            serviceId: item.serviceId,
+            serviceId: isNonStockService ? null : item.serviceId,
+            nonStockServiceId: isNonStockService ? item.nonStockServiceId : null,
+            isNonStockService: isNonStockService,
             width: width,
             height: height,
             discount: parseFloat((item.discount || 0).toString()),
@@ -614,10 +646,10 @@ export class OrdersService {
             isDiscounted: item.isDiscounted || false,
             status: item.status,
             pricingId: item.pricingId,
-            unit: totalCostResult.unit, // Use calculated unit
-            baseUomId: totalCostResult.baseUomId, // Use calculated baseUomId
-            totalCost: totalCostResult.totalCost,
-            sales: salesResult.sales,
+            unit: totalCostResult.unit || parseFloat((item.unit || 0).toString()),
+            baseUomId: totalCostResult.baseUomId || item.baseUomId || item.uomId,
+            totalCost: totalCostResult.totalCost || 0,
+            sales: salesResult.sales || 0,
           });
         }
       }
@@ -999,18 +1031,27 @@ export class OrdersService {
     let pricing;
     if (isNonStockService) {
       // For non-stock services, look for pricing with nonStockServiceId
+      if (!serviceId) {
+        // Return default values if no service ID is provided
+        return { totalCost: 0, unit: 0, baseUomId: uomId };
+      }
       pricing = await this.pricingRepository.findOne({
         where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
       });
     } else {
       // For regular services, look for pricing with serviceId
+      if (!serviceId) {
+        // Return default values if no service ID is provided
+        return { totalCost: 0, unit: 0, baseUomId: uomId };
+      }
       pricing = await this.pricingRepository.findOne({
         where: { itemId, serviceId, isNonStockService: false }
       });
     }
 
     if (!pricing) {
-      throw new BadRequestException(`Pricing not found for item ${itemId} and service ${serviceId}`);
+      // Return default values if no pricing is found
+      return { totalCost: 0, unit: 0, baseUomId: uomId };
     }
 
     let unit: number;
@@ -1073,18 +1114,27 @@ export class OrdersService {
     let pricing;
     if (isNonStockService) {
       // For non-stock services, look for pricing with nonStockServiceId
+      if (!serviceId) {
+        // Return default values if no service ID is provided
+        return { sales: 0, unit: 0, baseUomId: uomId };
+      }
       pricing = await this.pricingRepository.findOne({
         where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
       });
     } else {
       // For regular services, look for pricing with serviceId
+      if (!serviceId) {
+        // Return default values if no service ID is provided
+        return { sales: 0, unit: 0, baseUomId: uomId };
+      }
       pricing = await this.pricingRepository.findOne({
         where: { itemId, serviceId, isNonStockService: false }
       });
     }
 
     if (!pricing) {
-      throw new BadRequestException(`Pricing not found for item ${itemId} and service ${serviceId}`);
+      // Return default values if no pricing is found
+      return { sales: 0, unit: 0, baseUomId: uomId };
     }
 
     // Calculate sales using selling price

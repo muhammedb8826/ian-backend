@@ -237,8 +237,8 @@ export class OrderItemsService {
           totalAmount: orderPayment.totalAmount
         });
 
-        // Always check payment when status changes to "Delivered"
-        if (updateOrderItemDto.status === 'Delivered' && orderPayment.remainingAmount > 0) {
+        // Check payment when status changes to "Delivered" - only if forcePayment is true
+        if (updateOrderItemDto.status === 'Delivered' && orderPayment.forcePayment && orderPayment.remainingAmount > 0) {
           throw new ConflictException(
             `Payment is not completed. Cannot deliver order with outstanding payment of ${orderPayment.remainingAmount}.`
           );

@@ -45,8 +45,8 @@ export class ItemsService {
         reorder_level: createItemDto.reorder_level || 0,
         initial_stock: createItemDto.initial_stock || 0,
         updated_initial_stock: createItemDto.updated_initial_stock || 0,
-        can_be_sold: createItemDto.can_be_sold || false,
-        can_be_purchased: createItemDto.can_be_purchased || false,
+        can_be_sold: createItemDto.can_be_sold !== undefined ? createItemDto.can_be_sold : false,
+        can_be_purchased: createItemDto.can_be_purchased !== undefined ? createItemDto.can_be_purchased : false,
         quantity: createItemDto.quantity || 0,
         defaultUomId: createItemDto.defaultUomId,
         purchaseUomId: createItemDto.purchaseUomId,
@@ -106,6 +106,8 @@ export class ItemsService {
       }
     });
   }
+
+
 
   async findOne(id: string) {
     const item = await this.itemRepository.findOne({
