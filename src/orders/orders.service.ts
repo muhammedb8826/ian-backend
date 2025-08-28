@@ -227,17 +227,19 @@ export class OrdersService {
 
         // Create payment transactions if provided
         if (hasTransactions) {
-          const paymentTransactions = paymentTermData.transactions.map(transaction =>
-            this.paymentTransactionRepository.create({
+          const paymentTransactions = paymentTermData.transactions.map(transaction => {
+            const statusStr = typeof transaction.status === 'string' ? transaction.status.toLowerCase() : '';
+            const normalizedStatus = statusStr === 'paid' ? 'Paid' : statusStr === 'pending' ? 'Pending' : (transaction.status || 'Pending');
+            return this.paymentTransactionRepository.create({
               paymentTermId: savedPaymentTerm.id,
               date: transaction.date ? new Date(transaction.date) : new Date(),
               paymentMethod: transaction.paymentMethod,
               reference: transaction.reference || '',
               amount: parseFloat((transaction.amount || 0).toString()),
-              status: transaction.status === 'pending' ? 'Pending' : (transaction.status || 'Pending'),
+              status: normalizedStatus,
               description: transaction.description || '',
-            })
-          );
+            });
+          });
 
           await queryRunner.manager.save(PaymentTransaction, paymentTransactions);
         }
@@ -510,12 +512,13 @@ export class OrdersService {
       });
     }
 
-    // Validate missing fields for paymentTerm
+    // Validate missing fields for paymentTerm (supports array or object)
     if (paymentTerm) {
-      if (!paymentTerm.transactions || paymentTerm.transactions.length === 0) {
+      const paymentTermData = Array.isArray(paymentTerm) ? paymentTerm[0] : paymentTerm;
+      if (!paymentTermData.transactions || paymentTermData.transactions.length === 0) {
         throw new BadRequestException('Payment term transactions are missing.');
       }
-      paymentTerm.transactions.forEach((transaction, index) => {
+      paymentTermData.transactions.forEach((transaction, index) => {
         if (!transaction.paymentMethod) {
           throw new BadRequestException(`Payment method for payment term transaction #${index + 1} is missing.`);
         }
@@ -560,8 +563,8 @@ export class OrdersService {
 
       // Upsert order items with calculated totalCost and sales
       for (const item of orderItems) {
-        const width = item.width !== null ? parseFloat(item.width.toString()) : null;
-        const height = item.height !== null ? parseFloat(item.height.toString()) : null;
+        const width = item.width != null ? parseFloat(item.width.toString()) : null;
+        const height = item.height != null ? parseFloat(item.height.toString()) : null;
         const quantity = parseFloat((item.quantity || 0).toString());
 
         // Determine if this is a non-stock service
@@ -656,17 +659,14 @@ export class OrdersService {
 
       // Handle payment term
       if (paymentTerm) {
-        // Delete existing payment term and transactions if they exist
-        if (existingOrder.paymentTerm && existingOrder.paymentTerm.length > 0) {
-          await queryRunner.manager.delete(PaymentTransaction, { paymentTermId: existingOrder.paymentTerm[0].id });
-          await queryRunner.manager.delete(PaymentTerm, { id: existingOrder.paymentTerm[0].id });
-        }
+        const paymentTermData = Array.isArray(paymentTerm) ? paymentTerm[0] : paymentTerm;
+        const existingPaymentTerm = Array.isArray(existingOrder.paymentTerm)
+          ? existingOrder.paymentTerm[0]
+          : existingOrder.paymentTerm;
 
-        // Create new payment term
-        const hasTransactions = paymentTerm.transactions && paymentTerm.transactions.length > 0;
-        const remainingAmount = parseFloat((paymentTerm.remainingAmount || 0).toString());
-        
-        // Determine status based on transactions and remaining amount
+        const hasTransactions = paymentTermData.transactions && paymentTermData.transactions.length > 0;
+        const remainingAmount = parseFloat((paymentTermData.remainingAmount || 0).toString());
+
         let paymentStatus = 'Not Paid';
         if (hasTransactions) {
           if (remainingAmount === 0) {
@@ -676,28 +676,47 @@ export class OrdersService {
           }
         }
 
-        const newPaymentTerm = await queryRunner.manager.save(PaymentTerm, {
-          orderId: id,
-          totalAmount: parseFloat((paymentTerm.totalAmount || 0).toString()),
-          remainingAmount: remainingAmount,
-          status: paymentStatus,
-          forcePayment: paymentTerm.forcePayment || false,
-        });
+        let paymentTermIdToUse: string;
 
-        // Create payment transactions
+        if (existingPaymentTerm?.id) {
+          // Update existing payment term
+          await queryRunner.manager.update(PaymentTerm, existingPaymentTerm.id, {
+            orderId: id,
+            totalAmount: parseFloat((paymentTermData.totalAmount || 0).toString()),
+            remainingAmount: remainingAmount,
+            status: paymentStatus,
+            forcePayment: paymentTermData.forcePayment || false,
+          });
+          paymentTermIdToUse = existingPaymentTerm.id;
+
+          // Replace existing transactions
+          await queryRunner.manager.delete(PaymentTransaction, { paymentTermId: paymentTermIdToUse });
+        } else {
+          // Create new payment term
+          const created = await queryRunner.manager.save(PaymentTerm, {
+            orderId: id,
+            totalAmount: parseFloat((paymentTermData.totalAmount || 0).toString()),
+            remainingAmount: remainingAmount,
+            status: paymentStatus,
+            forcePayment: paymentTermData.forcePayment || false,
+          });
+          paymentTermIdToUse = created.id;
+        }
+
         if (hasTransactions) {
-          const paymentTransactions = paymentTerm.transactions.map(transaction =>
-            this.paymentTransactionRepository.create({
-              paymentTermId: newPaymentTerm.id,
+          const paymentTransactions = paymentTermData.transactions.map(transaction => {
+            const statusStr = typeof transaction.status === 'string' ? transaction.status.toLowerCase() : '';
+            const normalizedStatus = statusStr === 'paid' ? 'Paid' : statusStr === 'pending' ? 'Pending' : (transaction.status || 'Pending');
+            return this.paymentTransactionRepository.create({
+              paymentTermId: paymentTermIdToUse,
               date: transaction.date ? new Date(transaction.date) : new Date(),
               paymentMethod: transaction.paymentMethod,
-              reference: transaction.reference,
+              reference: transaction.reference || '',
               amount: parseFloat((transaction.amount || 0).toString()),
-              status: transaction.status ? 'Paid' : 'Pending',
-              description: transaction.description,
-            })
-          );
-
+              status: normalizedStatus,
+              description: transaction.description || '',
+            });
+          });
           await queryRunner.manager.save(PaymentTransaction, paymentTransactions);
         }
       }
