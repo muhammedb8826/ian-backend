@@ -24,6 +24,8 @@ export class ItemsController {
     return this.itemsService.findAllItems();
   }
 
+
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.itemsService.findOne(id);

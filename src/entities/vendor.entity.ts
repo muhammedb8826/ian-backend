@@ -9,19 +9,19 @@ export class Vendor {
   @Column({ unique: true })
   fullName: string;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ nullable: true })
   email: string;
 
   @Column({ unique: true })
   phone: string;
 
-  @Column()
+  @Column({ nullable: true })
   company: string;
 
-  @Column()
+  @Column({ nullable: true })
   address: string;
 
-  @Column()
+  @Column({ nullable: true })
   reference: string;
 
   @Column({ nullable: true })

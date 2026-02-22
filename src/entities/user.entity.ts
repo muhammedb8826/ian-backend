@@ -8,7 +8,7 @@ import { Sale } from './sale.entity';
 import { Role } from '../enums/role.enum';
 
 
-@Entity()
+@Entity('user')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;

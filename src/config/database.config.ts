@@ -10,13 +10,13 @@ export const createDatabaseConfig = (
 
   return {
     type: 'mysql',
-    host: dbConfig?.host || 'localhost',
-    port: dbConfig?.port || 3306,
-    username: dbConfig?.username || 'root',
-    password: dbConfig?.password || 'mame',
-    database: dbConfig?.database || 'ian_backend',
+    host: dbConfig?.host,
+    port: dbConfig?.port,
+    username: dbConfig?.username,
+    password: dbConfig?.password,
+    database: dbConfig?.database,
     entities: Object.values(entities),
-    synchronize: dbConfig?.synchronize ?? false, // Always false in production!
+    synchronize: false, // Temporarily disabled to prevent schema conflicts
     logging: dbConfig?.logging ?? ['error'], // Log only errors by default
     migrations: dbConfig?.migrations ? ['dist/migrations/*.js'] : undefined,
     migrationsRun: dbConfig?.migrationsRun || false,

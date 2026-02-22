@@ -106,6 +106,19 @@ export class UsersService {
     return this.userRepository.remove(user);
   }
 
+  async resetPassword(userId: string, newPassword: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
+
+    const hashedPassword = await this.hashPassword(newPassword);
+    await this.userRepository.update(userId, {
+      password: hashedPassword,
+      confirm_password: hashedPassword,
+    });
+
+    return { message: 'Password reset successfully' };
+  }
+
   async hashPassword(password: string) {
     return await bcrypt.hash(password, 10);
   }

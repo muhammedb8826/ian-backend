@@ -35,6 +35,8 @@ import { CommissionTransactionsModule } from './commission-transactions/commissi
 import { PricingModule } from './pricing/pricing.module';
 import { OrderItemNotesModule } from './order-item-notes/order-item-notes.module';
 import { DiscountsModule } from './discounts/discounts.module';
+import { ContactModule } from './contact/contact.module';
+import { AccountModule } from './account/account.module';
 
 // Services & Controllers
 import { UserMachineService } from './user-machine/user-machine.service';
@@ -47,6 +49,9 @@ import { MachinesController } from './machines/machines.controller';
 
 // Config
 import { createDatabaseConfig } from './config/database.config';
+import { FixedCostModule } from './fixed-cost/fixed-cost.module';
+import { FilePathModule } from './file-path/file-path.module';
+import { NonStockServicesModule } from './non-stock-services/non-stock-services.module';
 import configuration from './config/configuration';
 
 
@@ -68,7 +73,9 @@ import configuration from './config/configuration';
     TypeOrmModule.forFeature(Object.values(entities)),
 
     // Feature Modules (alphabetical order)
+    AccountModule,
     AuthModule,
+    ContactModule,
     CustomersModule,
     CommissionsModule,
     CommissionTransactionsModule,
@@ -95,6 +102,9 @@ import configuration from './config/configuration';
     VendorsModule,
     PaymentTermsModule,
     PaymentTransactionsModule,
+    FixedCostModule,
+    FilePathModule,
+    NonStockServicesModule,
   ],
   providers: [
     // Global Guards

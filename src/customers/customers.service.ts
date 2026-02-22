@@ -24,18 +24,7 @@ export class CustomersService {
       throw new ConflictException('Customer with this phone number already exists');
     }
 
-    // Check for existing customer by email, but only if email is provided
-    if (createCustomerDto.email) {
-      const existingCustomerByEmail = await this.customerRepository.findOne({
-        where: {
-          email: createCustomerDto.email,
-        },
-      });
-
-      if (existingCustomerByEmail) {
-        throw new ConflictException('Customer with this email already exists');
-      }
-    }
+    // Email is now optional and not unique, so no need to check for duplicates
 
     const customer = this.customerRepository.create({
       fullName: createCustomerDto.fullName,
@@ -105,18 +94,7 @@ export class CustomersService {
       throw new ConflictException('Customer with this phone number already exists');
     }
 
-    // Check for existing customer by email, but only if email is provided
-    if (updateCustomerDto.email) {
-      const existingCustomerByEmail = await this.customerRepository.findOne({
-        where: {
-          email: updateCustomerDto.email,
-        },
-      });
-
-      if (existingCustomerByEmail && existingCustomerByEmail.id !== id) {
-        throw new ConflictException('Customer with this email already exists');
-      }
-    }
+    // Email is now optional and not unique, so no need to check for duplicates
 
     await this.customerRepository.update(id, updateCustomerDto);
     return this.customerRepository.findOne({ where: { id } });

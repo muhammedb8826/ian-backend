@@ -1,13 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Item } from './item.entity';
 import { Order } from './order.entity';
 import { Pricing } from './pricing.entity';
 import { UOM } from './uom.entity';
 import { Service } from './service.entity';
+import { NonStockService } from './non-stock-service.entity';
 import { OrderItemNotes } from './order-item-notes.entity';
 
 @Entity('order_items')
-@Unique(['orderId', 'itemId', 'serviceId'])
 export class OrderItems {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -18,8 +18,14 @@ export class OrderItems {
   @Column()
   itemId: string;
 
-  @Column()
+  @Column({ nullable: true })
   serviceId: string;
+
+  @Column({ nullable: true })
+  nonStockServiceId: string;
+
+  @Column({ default: false })
+  isNonStockService: boolean;
 
   @Column('float', { nullable: true })
   width: number;
@@ -72,6 +78,12 @@ export class OrderItems {
   @Column('float')
   unit: number;
 
+  @Column('float', { default: 0 })
+  totalCost: number;
+
+  @Column('float', { default: 0 })
+  sales: number;
+
   @OneToMany(() => OrderItemNotes, orderItemNotes => orderItemNotes.orderItem)
   orderItemNotes: OrderItemNotes[];
 
@@ -91,7 +103,15 @@ export class OrderItems {
   @JoinColumn({ name: 'uomId' })
   uom: UOM;
 
+  @ManyToOne(() => UOM, baseUom => baseUom.baseOrderItems)
+  @JoinColumn({ name: 'baseUomId' })
+  baseUom: UOM;
+
   @ManyToOne(() => Service, service => service.orderItems)
   @JoinColumn({ name: 'serviceId' })
   service: Service;
+
+  @ManyToOne(() => NonStockService, nonStockService => nonStockService.orderItems)
+  @JoinColumn({ name: 'nonStockServiceId' })
+  nonStockService: NonStockService;
 }

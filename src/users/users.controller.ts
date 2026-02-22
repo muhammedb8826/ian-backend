@@ -1,12 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, BadRequestException, UploadedFile, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, BadRequestException, UploadedFile, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { Role } from '../enums/role.enum';
 import { User } from '../entities/user.entity';
+import { AtGuard, RolesGuard } from '../common';
+import { Roles } from '../decorators';
 
 @Controller('users')
 export class UsersController {
@@ -59,6 +62,13 @@ export class UsersController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
+  }
+
+  @Patch(':id/reset-password')
+  @UseGuards(AtGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  resetPassword(@Param('id') id: string, @Body() resetPasswordDto: ResetPasswordDto) {
+    return this.usersService.resetPassword(id, resetPasswordDto.newPassword);
   }
 
   @Patch(':id')

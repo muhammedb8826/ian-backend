@@ -13,17 +13,39 @@ export class PricingService {
   ) {}
 
   async create(createPricingDto: CreatePricingDto) {
-    const { itemId, serviceId } = createPricingDto;
+    const { itemId, serviceId, nonStockServiceId, isNonStockService } = createPricingDto;
 
-    const existing = await this.pricingRepository.findOne({
-      where: { itemId, serviceId }
-    });
-
-    if (existing) {
-      throw new ConflictException('Pricing already exists');
+    // Auto-correct the isNonStockService flag based on which ID is provided
+    let correctedIsNonStockService = isNonStockService;
+    if (nonStockServiceId && !serviceId) {
+      correctedIsNonStockService = true;
+    } else if (serviceId && !nonStockServiceId) {
+      correctedIsNonStockService = false;
     }
 
-    const pricing = this.pricingRepository.create(createPricingDto);
+    // Check for existing pricing based on service type
+    let existing;
+    if (correctedIsNonStockService && nonStockServiceId) {
+      existing = await this.pricingRepository.findOne({
+        where: { itemId, nonStockServiceId, isNonStockService: true }
+      });
+    } else if (serviceId) {
+      existing = await this.pricingRepository.findOne({
+        where: { itemId, serviceId, isNonStockService: false }
+      });
+    }
+
+    if (existing) {
+      throw new ConflictException('Pricing already exists for this item and service');
+    }
+
+    // Create pricing with corrected flag
+    const pricingData = {
+      ...createPricingDto,
+      isNonStockService: correctedIsNonStockService
+    };
+
+    const pricing = this.pricingRepository.create(pricingData);
     return await this.pricingRepository.save(pricing);
   }
 
@@ -32,7 +54,7 @@ export class PricingService {
       skip: +skip,
       take: +take,
       order: { createdAt: 'DESC' },
-      relations: ['item', 'service']
+      relations: ['item', 'service', 'nonStockService']
     });
     
     return { pricings, total };
@@ -40,14 +62,14 @@ export class PricingService {
 
   async findAllPricing() {
     return this.pricingRepository.find({
-      relations: ['item', 'service']
+      relations: ['item', 'service', 'nonStockService']
     });
   }
 
   async findOne(id: string) {
     const pricing = await this.pricingRepository.findOne({
       where: { id },
-      relations: ['item', 'service']
+      relations: ['item', 'service', 'nonStockService']
     });
 
     if (!pricing) {
@@ -66,11 +88,27 @@ export class PricingService {
       throw new NotFoundException('Pricing not found');
     }
 
-    await this.pricingRepository.update(id, updatePricingDto);
+    // Auto-correct the isNonStockService flag based on which ID is provided
+    const { serviceId, nonStockServiceId, isNonStockService } = updatePricingDto;
+    let correctedIsNonStockService = isNonStockService;
+    
+    if (nonStockServiceId && !serviceId) {
+      correctedIsNonStockService = true;
+    } else if (serviceId && !nonStockServiceId) {
+      correctedIsNonStockService = false;
+    }
+
+    // Update with corrected flag
+    const updateData = {
+      ...updatePricingDto,
+      isNonStockService: correctedIsNonStockService
+    };
+
+    await this.pricingRepository.update(id, updateData);
     
     return await this.pricingRepository.findOne({
       where: { id },
-      relations: ['item', 'service']
+      relations: ['item', 'service', 'nonStockService']
     });
   }
 
