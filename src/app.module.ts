@@ -1,9 +1,8 @@
-import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as entities from './entities';
-import { CorsMiddleware } from './common/cors.middleware';
 
 // Guards
 import { AtGuard } from './common';
@@ -37,6 +36,7 @@ import { PricingModule } from './pricing/pricing.module';
 import { OrderItemNotesModule } from './order-item-notes/order-item-notes.module';
 import { DiscountsModule } from './discounts/discounts.module';
 import { ContactModule } from './contact/contact.module';
+import { AccountModule } from './account/account.module';
 
 // Services & Controllers
 import { UserMachineService } from './user-machine/user-machine.service';
@@ -73,6 +73,7 @@ import configuration from './config/configuration';
     TypeOrmModule.forFeature(Object.values(entities)),
 
     // Feature Modules (alphabetical order)
+    AccountModule,
     AuthModule,
     ContactModule,
     CustomersModule,
@@ -124,10 +125,4 @@ import configuration from './config/configuration';
     MachinesController,
   ],
 })
-export class AppModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(CorsMiddleware)
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
-  }
-}
+export class AppModule {}
