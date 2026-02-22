@@ -36,7 +36,7 @@ jobs:
         cp -r src/* deploy/src/
        
 
-    - name: Deploy runtime bundle to cPanel via SFTP
+    - name: Deploy runtime bundle to cPanel via FTPS
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -44,5 +44,5 @@ jobs:
         password: ${{ secrets.FTP_PASSWORD }}
         server-dir: ${{ secrets.FTP_SERVER_DIR }}
         local-dir: deploy/
-        protocol: sftp
+        protocol: ftps
         port: 22
