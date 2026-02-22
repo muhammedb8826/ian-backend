@@ -43,9 +43,9 @@ jobs:
        username: ${{ secrets.FTP_USERNAME }}
        password: ${{ secrets.FTP_PASSWORD }}
        port: 22
-       source: "./deploy/"
+       source: "deploy/*"
        target: ${{ secrets.FTP_SERVER_DIR }}
-       rsync: true   
+       
 
     # - name: Deploy runtime bundle to cPanel via FTP
     #   uses: SamKirkland/FTP-Deploy-Action@v4.3.5
