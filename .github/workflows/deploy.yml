@@ -35,12 +35,24 @@ jobs:
         mkdir -p deploy/src
         cp -r src/* deploy/src/
 
-    - name: Deploy runtime bundle to cPanel via FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+
+    - name: Deploy via SFTP
+      uses: appleboy/scp-action@master
       with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: ${{ secrets.FTP_SERVER_DIR }}
-        local-dir: deploy/
-        protocol: ftp
+       host: ${{ secrets.FTP_SERVER }}
+       username: ${{ secrets.FTP_USERNAME }}
+       password: ${{ secrets.FTP_PASSWORD }}
+       port: 22
+       source: "./deploy/"
+       target: ${{ secrets.FTP_SERVER_DIR }}
+       rsync: true   
+
+    # - name: Deploy runtime bundle to cPanel via FTP
+    #   uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+    #   with:
+    #     server: ${{ secrets.FTP_SERVER }}
+    #     username: ${{ secrets.FTP_USERNAME }}
+    #     password: ${{ secrets.FTP_PASSWORD }}
+    #     server-dir: ${{ secrets.FTP_SERVER_DIR }}
+    #     local-dir: deploy/
+    #     protocol: ftp
