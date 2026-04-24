@@ -155,8 +155,7 @@ export class OrdersService {
               item.uomId,
               width,
               height,
-              quantity,
-              item.isNonStockService
+              quantity
             );
           } catch (error) {
             console.warn(`Pricing calculation failed for item ${item.itemId}:`, error.message);
@@ -594,8 +593,7 @@ export class OrdersService {
               item.uomId,
               width,
               height,
-              quantity,
-              isNonStockService
+              quantity
             );
           } catch (error) {
             console.warn(`Pricing calculation failed for item ${item.itemId}:`, error.message);
@@ -1101,8 +1099,7 @@ export class OrdersService {
     uomId: string,
     width: number | null,
     height: number | null,
-    quantity: number,
-    isNonStockService: boolean = false
+    quantity: number
   ): Promise<{ sales: number; unit: number; baseUomId: string }> {
     // Get item to check if it's constant or not
     const item = await this.itemRepository.findOne({
@@ -1116,48 +1113,21 @@ export class OrdersService {
 
     let unit: number;
     let baseUomId: string;
+    let sales: number;
 
     if (item.unitCategory.constant && width && height) {
       // Use constant item calculation
       const result = await this.calculateUnitPriceForConstantItems(itemId, serviceId, uomId, width, height, quantity);
       unit = result.unit;
       baseUomId = result.baseUomId;
+      sales = result.unitPrice;
     } else {
       // Use non-constant item calculation
       const result = await this.calculateUnitPriceForNonConstantItems(itemId, serviceId, uomId, quantity);
       unit = result.unit;
       baseUomId = result.baseUomId;
+      sales = result.unitPrice;
     }
-
-    // Get pricing based on whether it's a non-stock service or regular service
-    let pricing;
-    if (isNonStockService) {
-      // For non-stock services, look for pricing with nonStockServiceId
-      if (!serviceId) {
-        // Return default values if no service ID is provided
-        return { sales: 0, unit: 0, baseUomId: uomId };
-      }
-      pricing = await this.pricingRepository.findOne({
-        where: { itemId, nonStockServiceId: serviceId, isNonStockService: true }
-      });
-    } else {
-      // For regular services, look for pricing with serviceId
-      if (!serviceId) {
-        // Return default values if no service ID is provided
-        return { sales: 0, unit: 0, baseUomId: uomId };
-      }
-      pricing = await this.pricingRepository.findOne({
-        where: { itemId, serviceId, isNonStockService: false }
-      });
-    }
-
-    if (!pricing) {
-      // Return default values if no pricing is found
-      return { sales: 0, unit: 0, baseUomId: uomId };
-    }
-
-    // Calculate sales using selling price
-    const sales = unit * pricing.sellingPrice;
 
     return { sales, unit, baseUomId };
   }

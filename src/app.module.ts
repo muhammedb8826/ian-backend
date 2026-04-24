@@ -37,6 +37,7 @@ import { OrderItemNotesModule } from './order-item-notes/order-item-notes.module
 import { DiscountsModule } from './discounts/discounts.module';
 import { ContactModule } from './contact/contact.module';
 import { AccountModule } from './account/account.module';
+import { ReportsModule } from './reports/reports.module';
 
 // Services & Controllers
 import { UserMachineService } from './user-machine/user-machine.service';
@@ -91,6 +92,7 @@ import configuration from './config/configuration';
     PurchaseItemsModule,
     PurchaseItemNotesModule,
     PurchasesModule,
+    ReportsModule,
     SalesModule,
     SaleItemsModule,
     SaleItemNotesModule,
