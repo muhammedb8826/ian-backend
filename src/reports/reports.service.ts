@@ -19,6 +19,7 @@ interface NormalizedReportFilters {
   limit: number;
   search?: string;
   items: string[];
+  includeFixedCostAllocation: boolean;
   explicitRange?: ReportRange;
 }
 
@@ -69,10 +70,11 @@ interface OrderReportRow {
   tax: number;
   grandTotal: number;
   totalCost: number;
-  totalCommission: number;
   grossProfit: number;
-  fixedCostAllocation: number;
-  netProfitLoss: number;
+  totalCommission: number;
+  contributionProfit: number;
+  fixedCostAllocation?: number;
+  netProfitAfterFixedCost?: number;
   profitabilityStatus: ProfitabilityStatus;
   netMarginPercent: number;
   itemNames: string[];
@@ -86,12 +88,13 @@ interface DailyBreakdownRow {
   totalTax: number;
   totalGrandTotal: number;
   totalCost: number;
-  totalCommission: number;
   grossProfit: number;
-  allocatedFixedCost: number;
+  totalCommission: number;
+  contributionProfit: number;
+  allocatedFixedCost?: number;
   fixedCostForDay: number;
   unallocatedFixedCost: number;
-  netProfitLoss: number;
+  netProfitAfterFixedCost: number;
   companyNetProfitLoss: number;
 }
 
@@ -115,6 +118,7 @@ export class ReportsService {
       .leftJoinAndSelect('orderItems.item', 'item')
       .leftJoinAndSelect('orderItems.service', 'service')
       .leftJoinAndSelect('orderItems.nonStockService', 'nonStockService')
+      .leftJoinAndSelect('orderItems.pricing', 'pricing')
       .leftJoinAndSelect('order.commission', 'commission')
       .leftJoinAndSelect('commission.transactions', 'commissionTransactions')
       .orderBy('order.orderDate', 'DESC')
@@ -134,6 +138,7 @@ export class ReportsService {
           filters.items,
           ordersPerDay,
           fixedCostSummary.totalDailyFixedCost,
+          filters.includeFixedCostAllocation,
         ),
       )
       .filter((row): row is OrderReportRow => row !== null)
@@ -168,6 +173,7 @@ export class ReportsService {
         endDate: reportRange?.endDate ?? null,
         search: filters.search ?? null,
         items: filters.items,
+        includeFixedCostAllocation: filters.includeFixedCostAllocation,
       },
       period: {
         startDate: reportRange?.startDate ?? null,
@@ -179,7 +185,7 @@ export class ReportsService {
         commission:
           'Commission expense is recognized from commission.totalAmount and falls back to recorded commission transactions when totalAmount is missing.',
         fixedCost:
-          'Daily fixed cost is split equally across orders for each day, then prorated by sales share when item filters are applied.',
+          'Daily fixed cost is reported separately from order contribution profit. Per-order allocation is optional and only included when includeFixedCostAllocation=true.',
         revenue:
           'Revenue is taken from invoiced order totals before tax and falls back to order item invoice amounts for filtered item views.',
       },
@@ -212,6 +218,9 @@ export class ReportsService {
 
     const search = query.search?.trim() || undefined;
     const items = this.normalizeItems(query.items);
+    const includeFixedCostAllocation = this.parseBooleanFlag(
+      query.includeFixedCostAllocation,
+    );
     const startDate = query.startDate?.trim();
     const endDate = query.endDate?.trim();
 
@@ -245,8 +254,18 @@ export class ReportsService {
       limit,
       search,
       items,
+      includeFixedCostAllocation,
       explicitRange,
     };
+  }
+
+  private parseBooleanFlag(value?: string): boolean {
+    if (!value) {
+      return false;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+    return normalizedValue === 'true' || normalizedValue === '1' || normalizedValue === 'yes';
   }
 
   private normalizeItems(items?: string | string[]): string[] {
@@ -415,6 +434,7 @@ export class ReportsService {
     itemFilters: string[],
     ordersPerDay: Map<string, number>,
     totalDailyFixedCost: number,
+    includeFixedCostAllocation: boolean,
   ): OrderReportRow | null {
     const allItems = order.orderItems ?? [];
     const includedItems = this.filterOrderItems(allItems, itemFilters);
@@ -437,7 +457,8 @@ export class ReportsService {
     );
     const recognizedCommission = this.getRecognizedCommission(order.commission ?? []);
     const totalCommission = recognizedCommission * scopeShare;
-    const grossProfit = totalSales - includedAggregate.totalCost - totalCommission;
+    const grossProfit = totalSales - includedAggregate.totalCost;
+    const contributionProfit = grossProfit - totalCommission;
     const tax = this.getOrderTax(order) * scopeShare;
     const grandTotal = this.getOrderGrandTotal(order, orderNetSales, this.getOrderTax(order)) * scopeShare;
 
@@ -445,7 +466,7 @@ export class ReportsService {
     const ordersOnDate = ordersPerDay.get(orderDate) ?? 1;
     const fixedCostAllocation =
       ordersOnDate > 0 ? (totalDailyFixedCost / ordersOnDate) * scopeShare : 0;
-    const netProfitLoss = grossProfit - fixedCostAllocation;
+    const netProfitAfterFixedCost = contributionProfit - fixedCostAllocation;
 
     return {
       orderId: order.id,
@@ -461,14 +482,17 @@ export class ReportsService {
       tax,
       grandTotal,
       totalCost: includedAggregate.totalCost,
-      totalCommission,
       grossProfit,
-      fixedCostAllocation,
-      netProfitLoss,
-      profitabilityStatus: this.getProfitabilityStatus(netProfitLoss),
+      totalCommission,
+      contributionProfit,
+      fixedCostAllocation: includeFixedCostAllocation ? fixedCostAllocation : undefined,
+      netProfitAfterFixedCost: includeFixedCostAllocation
+        ? netProfitAfterFixedCost
+        : undefined,
+      profitabilityStatus: this.getProfitabilityStatus(contributionProfit),
       netMarginPercent:
         totalSales > 0
-          ? (netProfitLoss / totalSales) * 100
+          ? (contributionProfit / totalSales) * 100
           : 0,
       itemNames: includedAggregate.itemNames,
       serviceNames: includedAggregate.serviceNames,
@@ -555,6 +579,22 @@ export class ReportsService {
   }
 
   private getOrderItemCost(orderItem: OrderItems): number {
+    const pricing = orderItem.pricing;
+    const unit = this.toNumber(orderItem.unit);
+
+    if (pricing && unit > 0) {
+      const costPrice = this.toNumber(pricing.costPrice);
+      const pricingWidth = this.toNumber(pricing.width);
+      const pricingHeight = this.toNumber(pricing.height);
+      const hasSizing = pricingWidth > 0 && pricingHeight > 0;
+
+      if (hasSizing) {
+        return (unit * costPrice) / (pricingWidth * pricingHeight);
+      }
+
+      return unit * costPrice;
+    }
+
     return this.toNumber(orderItem.totalCost);
   }
 
@@ -672,12 +712,13 @@ export class ReportsService {
         totalTax: 0,
         totalGrandTotal: 0,
         totalCost: 0,
-        totalCommission: 0,
         grossProfit: 0,
-        allocatedFixedCost: 0,
+        totalCommission: 0,
+        contributionProfit: 0,
+        allocatedFixedCost: undefined,
         fixedCostForDay: totalDailyFixedCost,
         unallocatedFixedCost: totalDailyFixedCost,
-        netProfitLoss: 0,
+        netProfitAfterFixedCost: -totalDailyFixedCost,
         companyNetProfitLoss: -totalDailyFixedCost,
       });
 
@@ -696,14 +737,17 @@ export class ReportsService {
       currentRow.totalTax += orderRow.tax;
       currentRow.totalGrandTotal += orderRow.grandTotal;
       currentRow.totalCost += orderRow.totalCost;
-      currentRow.totalCommission += orderRow.totalCommission;
       currentRow.grossProfit += orderRow.grossProfit;
-      currentRow.allocatedFixedCost += orderRow.fixedCostAllocation;
+      currentRow.totalCommission += orderRow.totalCommission;
+      currentRow.contributionProfit += orderRow.contributionProfit;
+      currentRow.allocatedFixedCost =
+        (currentRow.allocatedFixedCost ?? 0) + (orderRow.fixedCostAllocation ?? 0);
       currentRow.unallocatedFixedCost =
-        currentRow.fixedCostForDay - currentRow.allocatedFixedCost;
-      currentRow.netProfitLoss += orderRow.netProfitLoss;
+        currentRow.fixedCostForDay - (currentRow.allocatedFixedCost ?? 0);
+      currentRow.netProfitAfterFixedCost =
+        currentRow.contributionProfit - currentRow.fixedCostForDay;
       currentRow.companyNetProfitLoss =
-        currentRow.grossProfit - currentRow.fixedCostForDay;
+        currentRow.contributionProfit - currentRow.fixedCostForDay;
     }
 
     return [...breakdownByDate.values()].sort((left, right) =>
@@ -721,17 +765,18 @@ export class ReportsService {
         totals.totalTax += row.tax;
         totals.totalGrandTotal += row.grandTotal;
         totals.totalCost += row.totalCost;
-        totals.totalCommission += row.totalCommission;
         totals.grossProfit += row.grossProfit;
-        totals.allocatedFixedCost += row.fixedCostAllocation;
-        totals.netProfitLoss += row.netProfitLoss;
+        totals.totalCommission += row.totalCommission;
+        totals.contributionProfit += row.contributionProfit;
+        totals.allocatedFixedCost += row.fixedCostAllocation ?? 0;
+        totals.netProfitAfterFixedCost += row.netProfitAfterFixedCost ?? 0;
 
-        if (row.netProfitLoss > 0) {
+        if (row.contributionProfit > 0) {
           totals.profitableOrdersCount += 1;
-          totals.profitValue += row.netProfitLoss;
-        } else if (row.netProfitLoss < 0) {
+          totals.profitValue += row.contributionProfit;
+        } else if (row.contributionProfit < 0) {
           totals.lossMakingOrdersCount += 1;
-          totals.lossValue += Math.abs(row.netProfitLoss);
+          totals.lossValue += Math.abs(row.contributionProfit);
         } else {
           totals.breakEvenOrdersCount += 1;
         }
@@ -746,10 +791,11 @@ export class ReportsService {
         totalTax: 0,
         totalGrandTotal: 0,
         totalCost: 0,
-        totalCommission: 0,
         grossProfit: 0,
+        totalCommission: 0,
+        contributionProfit: 0,
         allocatedFixedCost: 0,
-        netProfitLoss: 0,
+        netProfitAfterFixedCost: 0,
         profitableOrdersCount: 0,
         lossMakingOrdersCount: 0,
         breakEvenOrdersCount: 0,
@@ -760,6 +806,8 @@ export class ReportsService {
 
     const unallocatedFixedCost =
       fixedCostSummary.totalPeriodFixedCost - summary.allocatedFixedCost;
+    const netProfitAfterFixedCost =
+      summary.contributionProfit - fixedCostSummary.totalPeriodFixedCost;
 
     return {
       ...summary,
@@ -767,12 +815,18 @@ export class ReportsService {
       reportDays: fixedCostSummary.reportDays,
       totalFixedCostForPeriod: fixedCostSummary.totalPeriodFixedCost,
       unallocatedFixedCost,
-      companyNetProfitLoss:
-        summary.grossProfit - fixedCostSummary.totalPeriodFixedCost,
+      netProfitAfterFixedCost,
+      companyNetProfitLoss: netProfitAfterFixedCost,
       averageOrderSales:
         summary.orderCount > 0 ? summary.totalSales / summary.orderCount : 0,
-      averageOrderNetProfitLoss:
-        summary.orderCount > 0 ? summary.netProfitLoss / summary.orderCount : 0,
+      averageOrderContributionProfit:
+        summary.orderCount > 0
+          ? summary.contributionProfit / summary.orderCount
+          : 0,
+      averageOrderNetProfitAfterFixedCost:
+        summary.orderCount > 0
+          ? netProfitAfterFixedCost / summary.orderCount
+          : 0,
     };
   }
 

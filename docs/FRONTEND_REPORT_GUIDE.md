@@ -20,13 +20,14 @@ This report is designed for a finance dashboard or reporting screen that shows:
 ## Query Parameters
 
 | Parameter | Type | Required | Notes |
-|----------|------|----------|------|
+| --------- | ---- | -------- | ----- |
 | `page` | number | No | Default `1` |
 | `limit` | number | No | Default `20`, max `200` |
 | `startDate` | string | No | Must be `YYYY-MM-DD` |
 | `endDate` | string | No | Must be `YYYY-MM-DD` |
 | `search` | string | No | Matches order id, series, customer, sales partner, item/service names, and descriptions |
 | `items` | string or string[] | No | Can be repeated, for example `?items=Banner&items=Sticker`, or comma-separated |
+| `includeFixedCostAllocation` | boolean-like string | No | Default `false`. Use `true` to include per-order fixed cost allocation and net profit after fixed cost |
 
 ## Date Rules
 
@@ -73,6 +74,7 @@ type CompanyProfitReportResponse = {
     endDate: string | null;
     search: string | null;
     items: string[];
+    includeFixedCostAllocation: boolean;
   };
   period: {
     startDate: string | null;
@@ -106,10 +108,11 @@ type CompanyProfitReportResponse = {
     totalTax: number;
     totalGrandTotal: number;
     totalCost: number;
-    totalCommission: number;
     grossProfit: number;
+    totalCommission: number;
+    contributionProfit: number;
     allocatedFixedCost: number;
-    netProfitLoss: number;
+    netProfitAfterFixedCost: number;
     profitableOrdersCount: number;
     lossMakingOrdersCount: number;
     breakEvenOrdersCount: number;
@@ -121,7 +124,8 @@ type CompanyProfitReportResponse = {
     unallocatedFixedCost: number;
     companyNetProfitLoss: number;
     averageOrderSales: number;
-    averageOrderNetProfitLoss: number;
+    averageOrderContributionProfit: number;
+    averageOrderNetProfitAfterFixedCost: number;
   };
   dailyBreakdown: Array<{
     date: string;
@@ -130,12 +134,13 @@ type CompanyProfitReportResponse = {
     totalTax: number;
     totalGrandTotal: number;
     totalCost: number;
-    totalCommission: number;
     grossProfit: number;
-    allocatedFixedCost: number;
+    totalCommission: number;
+    contributionProfit: number;
+    allocatedFixedCost?: number;
     fixedCostForDay: number;
     unallocatedFixedCost: number;
-    netProfitLoss: number;
+    netProfitAfterFixedCost: number;
     companyNetProfitLoss: number;
   }>;
   orders: Array<{
@@ -152,10 +157,11 @@ type CompanyProfitReportResponse = {
     tax: number;
     grandTotal: number;
     totalCost: number;
-    totalCommission: number;
     grossProfit: number;
-    fixedCostAllocation: number;
-    netProfitLoss: number;
+    totalCommission: number;
+    contributionProfit: number;
+    fixedCostAllocation?: number;
+    netProfitAfterFixedCost?: number;
     profitabilityStatus: 'profit' | 'loss' | 'break-even';
     netMarginPercent: number;
     itemNames: string[];
@@ -199,16 +205,20 @@ The frontend should display these values as returned and should not recalculate 
 - the report totals expose:
   - `totalDailyFixedCost`
   - `totalPeriodFixedCost`
+- order rows do not include fixed cost by default
+- to include per-order overhead allocation, send `includeFixedCostAllocation=true`
 
 ### Profit And Loss
 
-- `grossProfit = totalSales - totalCost - totalCommission`
-- `netProfitLoss = grossProfit - fixedCostAllocation`
-- `companyNetProfitLoss = grossProfit - total fixed cost for the whole period`
+- `grossProfit = totalSales - totalCost`
+- `contributionProfit = grossProfit - totalCommission`
+- `netProfitAfterFixedCost = contributionProfit - fixed costs`
+- `companyNetProfitLoss = contributionProfit - total fixed cost for the whole period`
 
 Important:
 
-- `summary.netProfitLoss` is the sum of the displayed order rows
+- order rows are contribution-level by default and keep overhead separate
+- `summary.netProfitAfterFixedCost` is the full company result after fixed costs
 - `summary.companyNetProfitLoss` subtracts the full period fixed cost, including any unallocated fixed cost
 - if item filters are used, fixed cost is prorated by the filtered sales share
 - `summary.totalGrandTotal = summary.totalSales + summary.totalTax`
@@ -235,8 +245,9 @@ Recommended cards:
 - Total Tax -> `summary.totalTax`
 - Total Invoice Amount -> `summary.totalGrandTotal`
 - Total Cost -> `summary.totalCost`
-- Total Commission -> `summary.totalCommission`
 - Gross Profit -> `summary.grossProfit`
+- Total Commission -> `summary.totalCommission`
+- Contribution Profit -> `summary.contributionProfit`
 - Fixed Cost For Period -> `summary.totalFixedCostForPeriod`
 - Company Net Profit/Loss -> `summary.companyNetProfitLoss`
 - Profit Orders -> `summary.profitableOrdersCount`
@@ -249,7 +260,7 @@ Use `dailyBreakdown` for:
 - line chart: `date` vs `companyNetProfitLoss`
 - line chart: `date` vs `totalSales`
 - line chart: `date` vs `totalGrandTotal`
-- stacked bars: `grossProfit`, `fixedCostForDay`
+- stacked bars: `contributionProfit`, `fixedCostForDay`
 
 Recommended x-axis:
 
@@ -289,17 +300,18 @@ Recommended columns:
 - Tax
 - Grand Total
 - Cost
-- Commission
 - Gross Profit
+- Commission
+- Contribution Profit
 - Fixed Cost Allocation
-- Net Profit/Loss
+- Net Profit After Fixed Cost
 - Margin %
 - Profitability Status
 
 Formatting suggestions:
 
-- join `itemNames` with `, `
-- join `serviceNames` with `, `
+- join `itemNames` with `,`
+- join `serviceNames` with `,`
 - color `profitabilityStatus`
   - `profit` -> green
   - `loss` -> red
@@ -441,5 +453,7 @@ Show backend validation messages when available. Common cases:
 
 - the report route is protected
 - the report is paginated at the order row level
+- order rows are overhead-free by default for cleaner operational analysis
+- send `includeFixedCostAllocation=true` only when you explicitly want allocated fixed cost on each order
 - if the frontend needs export support later, add a separate export endpoint instead of exporting the paginated response directly
 - if the frontend needs chart-specific totals, reuse `summary` and `dailyBreakdown` instead of re-aggregating `orders`

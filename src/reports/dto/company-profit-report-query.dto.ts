@@ -15,4 +15,8 @@ export class CompanyProfitReportQueryDto {
 
   @IsOptional()
   items?: string | string[];
+
+  @IsOptional()
+  @IsString()
+  includeFixedCostAllocation?: string;
 }

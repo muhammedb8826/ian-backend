@@ -1073,21 +1073,27 @@ export class OrdersService {
 
     let unit: number;
     let baseUomId: string;
+    let totalCost: number;
 
     if (item.unitCategory.constant && width && height) {
       // Use constant item calculation
       const result = await this.calculateUnitPriceForConstantItems(itemId, serviceId, uomId, width, height, quantity);
       unit = result.unit;
       baseUomId = result.baseUomId;
+      const divider = (pricing.width || 0) * (pricing.height || 0);
+
+      if (divider === 0) {
+        throw new BadRequestException(`Invalid pricing dimensions for item ${itemId}`);
+      }
+
+      totalCost = (unit * (pricing.costPrice || 0)) / divider;
     } else {
       // Use non-constant item calculation
       const result = await this.calculateUnitPriceForNonConstantItems(itemId, serviceId, uomId, quantity);
       unit = result.unit;
       baseUomId = result.baseUomId;
+      totalCost = unit * (pricing.costPrice || 0);
     }
-
-    // Calculate total cost using cost price
-    const totalCost = unit * (pricing.costPrice || 0);
 
     return { totalCost, unit, baseUomId };
   }

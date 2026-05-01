@@ -15,13 +15,13 @@ describe('ReportsService', () => {
     return queryBuilder;
   };
 
-  const createService = (orders: unknown[]) => {
+  const createService = (orders: unknown[], fixedCosts: unknown[] = []) => {
     const queryBuilder = createQueryBuilderMock(orders);
     const orderRepository = {
       createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
     };
     const fixedCostRepository = {
-      find: jest.fn().mockResolvedValue([]),
+      find: jest.fn().mockResolvedValue(fixedCosts),
     };
 
     return {
@@ -71,8 +71,12 @@ describe('ReportsService', () => {
     expect(report.summary.totalTax).toBe(15);
     expect(report.summary.totalGrandTotal).toBe(115);
     expect(report.summary.grossProfit).toBe(60);
+    expect(report.summary.contributionProfit).toBe(60);
     expect(report.orders[0].totalSales).toBe(100);
     expect(report.orders[0].grossProfit).toBe(60);
+    expect(report.orders[0].contributionProfit).toBe(60);
+    expect(report.orders[0].fixedCostAllocation).toBeUndefined();
+    expect(report.orders[0].netProfitAfterFixedCost).toBeUndefined();
   });
 
   it('uses filtered item invoice totals when item filters are applied', async () => {
@@ -124,7 +128,113 @@ describe('ReportsService', () => {
     expect(report.summary.totalTax).toBeCloseTo(4.5);
     expect(report.summary.totalGrandTotal).toBeCloseTo(34.5);
     expect(report.summary.grossProfit).toBe(20);
+    expect(report.summary.contributionProfit).toBe(20);
     expect(report.orders[0].totalSales).toBe(30);
     expect(report.orders[0].grossProfit).toBe(20);
+    expect(report.orders[0].contributionProfit).toBe(20);
+  });
+
+  it('recalculates constant item cost from pricing dimensions for reporting', async () => {
+    const order = {
+      id: 'order-constant-cost',
+      series: 'ORD-004',
+      orderDate: new Date('2026-05-01T00:00:00.000Z'),
+      totalAmount: 200,
+      tax: 30,
+      grandTotal: 230,
+      status: 'Delivered',
+      orderSource: 'telegram',
+      customer: { fullName: 'Muhammed Berisso' },
+      salesPartner: null,
+      commission: [],
+      orderItems: [
+        {
+          quantity: 1,
+          totalAmount: 200,
+          unitPrice: 200,
+          unit: 10000,
+          totalCost: 750000,
+          sales: 200,
+          item: { name: 'Banner 2M' },
+          service: null,
+          nonStockService: { name: 'PRINT ONLY' },
+          pricing: {
+            costPrice: 75,
+            width: 100,
+            height: 100,
+          },
+        },
+      ],
+    };
+
+    const { service } = createService([order]);
+
+    const report = await service.getCompanyProfitReport({
+      page: 1,
+      limit: 20,
+      items: ['Banner 2M'],
+    });
+
+    expect(report.summary.totalCost).toBe(75);
+    expect(report.summary.grossProfit).toBe(125);
+    expect(report.summary.contributionProfit).toBe(125);
+    expect(report.orders[0].totalCost).toBe(75);
+  });
+
+  it('only includes fixed cost allocation when explicitly requested', async () => {
+    const order = {
+      id: 'order-3',
+      series: 'ORD-003',
+      orderDate: new Date('2026-04-12T00:00:00.000Z'),
+      totalAmount: 200,
+      tax: 30,
+      grandTotal: 230,
+      status: 'Delivered',
+      orderSource: 'Walk-in',
+      customer: { fullName: 'Acme' },
+      salesPartner: null,
+      commission: [],
+      orderItems: [
+        {
+          quantity: 1,
+          totalAmount: 200,
+          unitPrice: 200,
+          totalCost: 120,
+          sales: 999999,
+          item: { name: 'Poster' },
+          service: { name: 'Printing' },
+          nonStockService: null,
+        },
+      ],
+    };
+
+    const fixedCosts = [
+      {
+        id: 'fixed-1',
+        description: 'Rent',
+        monthlyFixedCost: 0,
+        dailyFixedCost: 50,
+      },
+    ];
+
+    const { service } = createService([order], fixedCosts);
+
+    const defaultReport = await service.getCompanyProfitReport({
+      page: 1,
+      limit: 20,
+    });
+
+    expect(defaultReport.orders[0].fixedCostAllocation).toBeUndefined();
+    expect(defaultReport.orders[0].netProfitAfterFixedCost).toBeUndefined();
+    expect(defaultReport.summary.companyNetProfitLoss).toBe(30);
+
+    const allocatedReport = await service.getCompanyProfitReport({
+      page: 1,
+      limit: 20,
+      includeFixedCostAllocation: 'true',
+    });
+
+    expect(allocatedReport.orders[0].fixedCostAllocation).toBe(50);
+    expect(allocatedReport.orders[0].netProfitAfterFixedCost).toBe(30);
   });
 });
