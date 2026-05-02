@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
@@ -9,6 +9,7 @@ import { OperatorStock } from 'src/entities/operator-stock.entity';
 import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { OrderItemComponent } from 'src/entities/order-item-component.entity';
 import { CreateOrderItemComponentDto } from './dto/create-order-item-component.dto';
+import { RecordProductionDto } from './dto/record-production.dto';
 
 @Injectable()
 export class OrderItemsService {
@@ -231,6 +232,94 @@ export class OrderItemsService {
     });
   }
 
+  /**
+   * Production records how many units were completed for this line (e.g. 5 of 50 banners).
+   * Stock is reduced by (additionalQuantity / quantity) * unit for stock services.
+   * When cumulative production reaches ordered quantity, status becomes Printed.
+   */
+  async recordProduction(orderItemId: string, dto: RecordProductionDto) {
+    const additional = parseFloat(Number(dto.additionalQuantity).toString());
+    if (!(additional > 0) || Number.isNaN(additional)) {
+      throw new BadRequestException('additionalQuantity must be a positive number');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const orderItem = await queryRunner.manager.findOne(OrderItems, {
+        where: { id: orderItemId },
+        relations: ['item'],
+      });
+
+      if (!orderItem) {
+        throw new NotFoundException('Order item not found');
+      }
+
+      const orderedQty = parseFloat((orderItem.quantity || 0).toString());
+      if (orderedQty <= 0) {
+        throw new BadRequestException('Order item has invalid quantity');
+      }
+
+      const producedSoFar = parseFloat((orderItem.quantityProduced ?? 0).toString());
+      const remaining = orderedQty - producedSoFar;
+      if (additional > remaining + 1e-9) {
+        throw new BadRequestException(
+          `Cannot record ${additional} more; only ${remaining} remaining of ${orderedQty} ordered`,
+        );
+      }
+
+      const newProduced = producedSoFar + additional;
+      const unitPortion = (orderItem.unit / orderedQty) * additional;
+
+      if (!orderItem.isNonStockService && unitPortion > 0) {
+        const operatorStock = await queryRunner.manager.findOne(OperatorStock, {
+          where: { itemId: orderItem.itemId },
+        });
+
+        if (!operatorStock) {
+          throw new ConflictException(
+            `Please make a request for item ${orderItem.item?.name ?? orderItem.itemId} before recording production`,
+          );
+        }
+
+        if (operatorStock.quantity < unitPortion) {
+          throw new ConflictException(
+            `Insufficient stock for item: ${orderItem.item?.name}. Available: ${operatorStock.quantity}, Required: ${unitPortion}`,
+          );
+        }
+
+        await queryRunner.manager.update(OperatorStock, operatorStock.id, {
+          quantity: operatorStock.quantity - unitPortion,
+        });
+      }
+
+      const fullyProduced = newProduced >= orderedQty - 1e-9;
+      const nextStatus =
+        fullyProduced && orderItem.status !== 'Void' ? 'Printed' : orderItem.status;
+
+      await queryRunner.manager.update(OrderItems, orderItemId, {
+        quantityProduced: newProduced,
+        status: nextStatus,
+      });
+
+      await queryRunner.commitTransaction();
+
+      await this.updateOrderStatus(orderItem.orderId);
+
+      return this.orderItemsRepository.findOne({
+        where: { id: orderItemId },
+        relations: ['order', 'item', 'service', 'nonStockService', 'pricing', 'uom', 'components', 'components.item', 'components.uom'],
+      });
+    } catch (e) {
+      await queryRunner.rollbackTransaction();
+      throw e;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async update(id: string, updateOrderItemDto: UpdateOrderItemDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -247,6 +336,8 @@ export class OrderItemsService {
         throw new NotFoundException('Order item not found');
       }
 
+      let quantityProducedToSet: number | undefined;
+
       // Handle stock reduction for Printed or Void status (only when status changes to these states)
       // Only reduce stock for stock services (not non-stock services like PRINT-ONLY, CUT-ONLY)
       if ((updateOrderItemDto.status === 'Printed' || updateOrderItemDto.status === 'Void') && 
@@ -261,18 +352,30 @@ export class OrderItemsService {
           throw new ConflictException(`Please make a request for item ${currentOrderItem.item.name} before trying to print`);
         }
 
-        // Use unit as the quantity to reduce (unit represents the total measurement amount)
-        const quantityToReduce = currentOrderItem.unit;
-        
-        // Check if the stock quantity is sufficient
-        if (operatorStock.quantity < quantityToReduce) {
-          throw new ConflictException(`Insufficient stock for item: ${currentOrderItem.item.name}. Available: ${operatorStock.quantity}, Required: ${quantityToReduce}`);
+        const orderedQty = parseFloat((currentOrderItem.quantity || 0).toString());
+        if (orderedQty <= 0) {
+          throw new ConflictException('Invalid order item quantity for stock deduction');
         }
 
-        // Reduce stock
-        await queryRunner.manager.update(OperatorStock, operatorStock.id, {
-          quantity: operatorStock.quantity - quantityToReduce,
-        });
+        const produced = parseFloat((currentOrderItem.quantityProduced ?? 0).toString());
+        let quantityToReduce = 0;
+        if (produced === 0) {
+          quantityToReduce = currentOrderItem.unit;
+          quantityProducedToSet = orderedQty;
+        } else if (produced < orderedQty) {
+          quantityToReduce = currentOrderItem.unit * (orderedQty - produced) / orderedQty;
+          quantityProducedToSet = orderedQty;
+        }
+
+        if (quantityToReduce > 0) {
+          if (operatorStock.quantity < quantityToReduce) {
+            throw new ConflictException(`Insufficient stock for item: ${currentOrderItem.item.name}. Available: ${operatorStock.quantity}, Required: ${quantityToReduce}`);
+          }
+
+          await queryRunner.manager.update(OperatorStock, operatorStock.id, {
+            quantity: operatorStock.quantity - quantityToReduce,
+          });
+        }
       }
 
       // Handle stock restoration when status changes from Printed/Void to other states
@@ -286,10 +389,11 @@ export class OrderItemsService {
         });
 
         if (operatorStock) {
-          // Use unit as the quantity to restore (unit represents the total measurement amount)
-          const quantityToRestore = currentOrderItem.unit;
-          
-          // Restore stock
+          const orderedQty = parseFloat((currentOrderItem.quantity || 0).toString()) || 1;
+          const produced = parseFloat((currentOrderItem.quantityProduced ?? 0).toString());
+          const quantityToRestore =
+            produced === 0 ? currentOrderItem.unit : currentOrderItem.unit * (produced / orderedQty);
+
           await queryRunner.manager.update(OperatorStock, operatorStock.id, {
             quantity: operatorStock.quantity + quantityToRestore,
           });
@@ -356,6 +460,7 @@ export class OrderItemsService {
         pricingId: updateOrderItemDto.pricingId,
         unit: parseFloat((updateOrderItemDto.unit || 0).toString()),
         baseUomId: updateOrderItemDto.baseUomId,
+        ...(quantityProducedToSet !== undefined ? { quantityProduced: quantityProducedToSet } : {}),
         ...(updateOrderItemDto.components !== undefined ? { totalCost: componentsTotalCost } : {}),
       });
 

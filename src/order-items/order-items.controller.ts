@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { OrderItemsService } from './order-items.service';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
+import { RecordProductionDto } from './dto/record-production.dto';
 
 @Controller('order-items')
 export class OrderItemsController {
@@ -10,6 +11,11 @@ export class OrderItemsController {
   @Post()
   async create(@Body() createOrderItemDto: CreateOrderItemDto) {
     return this.orderItemsService.create(createOrderItemDto);
+  }
+
+  @Post(':id/record-production')
+  async recordProduction(@Param('id') id: string, @Body() dto: RecordProductionDto) {
+    return this.orderItemsService.recordProduction(id, dto);
   }
 
   @Get('all')

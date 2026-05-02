@@ -52,6 +52,10 @@ export class OrderItems {
   @Column()
   quantity: number;
 
+  /** Cumulative units completed by production; stock is deducted proportionally per increment. */
+  @Column('float', { default: 0 })
+  quantityProduced: number;
+
   @Column('float')
   unitPrice: number;
 
