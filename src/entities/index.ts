@@ -4,6 +4,8 @@ export * from './commission.entity';
 export * from './customer.entity';
 export * from './discount.entity';
 export * from './fixed-cost.entity';
+export * from './item-bom-line.entity';
+export * from './item-bom.entity';
 export * from './item.entity';
 export * from './machine.entity';
 export * from './order-item-notes.entity';

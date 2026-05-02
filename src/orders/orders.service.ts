@@ -16,6 +16,7 @@ import { UOM } from 'src/entities/uom.entity';
 import { UnitCategory } from 'src/entities/unit-category.entity';
 import { OrderItemComponent } from 'src/entities/order-item-component.entity';
 import { CreateOrderItemComponentDto } from 'src/order-items/dto/create-order-item-component.dto';
+import { BomService } from 'src/bom/bom.service';
 
 @Injectable()
 export class OrdersService {
@@ -44,6 +45,7 @@ export class OrdersService {
     private readonly uomRepository: Repository<UOM>,
     @InjectRepository(UnitCategory)
     private readonly unitCategoryRepository: Repository<UnitCategory>,
+    private readonly bomService: BomService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -145,11 +147,24 @@ export class OrdersService {
       if (!item.baseUomId) {
         throw new BadRequestException('Base UOM ID is required for all order items');
       }
-    }
+      }
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+      const orderItemsWithResolvedComponents = await Promise.all(
+        createOrderDto.orderItems.map(async item => {
+          const resolvedComponents =
+            item.components && item.components.length > 0
+              ? item.components
+              : await this.bomService.toOrderItemComponents(
+                  item.itemId,
+                  parseFloat((item.quantity || 0).toString()),
+                );
+          return { item, resolvedComponents };
+        }),
+      );
+
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
 
     try {
       // Validate pricingId for each orderItem
@@ -184,7 +199,7 @@ export class OrdersService {
       const savedOrder = await queryRunner.manager.save(Order, order);
 
       // Create order items with calculated totalCost and sales
-      const orderItems = await Promise.all(createOrderDto.orderItems.map(async (item) => {
+      const orderItems = await Promise.all(orderItemsWithResolvedComponents.map(async ({ item, resolvedComponents }) => {
         const width = item.width ? parseFloat(item.width.toString()) : null;
         const height = item.height ? parseFloat(item.height.toString()) : null;
         const quantity = parseFloat((item.quantity || 0).toString());
@@ -195,7 +210,7 @@ export class OrdersService {
         // Only calculate pricing if service information is provided
         let totalCostResult = { totalCost: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
         let salesResult = { sales: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
-        const componentsTotalCost = this.calculateComponentsTotalCost(item.components);
+        const componentsTotalCost = this.calculateComponentsTotalCost(resolvedComponents);
 
         if (serviceIdForCalculation) {
           try {
@@ -224,7 +239,7 @@ export class OrdersService {
           }
         }
 
-        const totalCost = item.components?.length > 0 ? componentsTotalCost : totalCostResult.totalCost || 0;
+        const totalCost = resolvedComponents?.length > 0 ? componentsTotalCost : totalCostResult.totalCost || 0;
 
         return this.orderItemsRepository.create({
           orderId: savedOrder.id,
@@ -254,7 +269,7 @@ export class OrdersService {
 
       const savedOrderItems = await queryRunner.manager.save(OrderItems, orderItems);
       const components = savedOrderItems.flatMap((savedOrderItem, index) =>
-        this.buildOrderItemComponents(savedOrderItem.id, createOrderDto.orderItems[index]?.components),
+        this.buildOrderItemComponents(savedOrderItem.id, orderItemsWithResolvedComponents[index]?.resolvedComponents),
       );
 
       if (components.length > 0) {
@@ -659,7 +674,30 @@ export class OrdersService {
         const existingOrderItem = item.id
           ? existingOrder.orderItems.find(existingItem => existingItem.id === item.id)
           : undefined;
-        const costComponents = item.components !== undefined ? item.components : existingOrderItem?.components;
+
+        let costComponents: Array<{ quantity?: number; unitCost?: number; totalCost?: number }> | undefined;
+        let componentsToPersist: CreateOrderItemComponentDto[] | null = null;
+
+        if (item.id) {
+          if (item.components !== undefined) {
+            costComponents = item.components;
+            componentsToPersist = item.components;
+          } else {
+            costComponents = existingOrderItem?.components as
+              | Array<{ quantity?: number; unitCost?: number; totalCost?: number }>
+              | undefined;
+          }
+        } else {
+          if (item.components !== undefined) {
+            costComponents = item.components;
+            componentsToPersist = item.components;
+          } else {
+            const fromBom = await this.bomService.toOrderItemComponents(item.itemId, quantity);
+            costComponents = fromBom;
+            componentsToPersist = fromBom;
+          }
+        }
+
         const componentsTotalCost = this.calculateComponentsTotalCost(costComponents);
 
         if (serviceId) {
@@ -689,7 +727,8 @@ export class OrdersService {
           }
         }
 
-        const totalCost = costComponents?.length > 0 ? componentsTotalCost : totalCostResult.totalCost || 0;
+        const totalCost =
+          costComponents && costComponents.length > 0 ? componentsTotalCost : totalCostResult.totalCost || 0;
 
         if (item.id) {
           // Update existing order item
@@ -752,7 +791,7 @@ export class OrdersService {
             sales: salesResult.sales || 0,
           });
 
-          const components = this.buildOrderItemComponents(savedOrderItem.id, item.components);
+          const components = this.buildOrderItemComponents(savedOrderItem.id, componentsToPersist ?? []);
 
           if (components.length > 0) {
             await queryRunner.manager.save(OrderItemComponent, components);

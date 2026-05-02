@@ -14,9 +14,11 @@ import { Item } from 'src/entities/item.entity';
 import { UOM } from 'src/entities/uom.entity';
 import { UnitCategory } from 'src/entities/unit-category.entity';
 import { OrderItemComponent } from 'src/entities/order-item-component.entity';
+import { BomModule } from 'src/bom/bom.module';
 
 @Module({
   imports: [
+    BomModule,
     TypeOrmModule.forFeature([
       Order, 
       Pricing, 

@@ -9,6 +9,7 @@ import { AtGuard } from './common';
 
 // Modules
 import { AuthModule } from './auth/auth.module';
+import { BomModule } from './bom/bom.module';
 import { UsersModule } from './users/users.module';
 import { FileModule } from './file/file.module';
 import { MachinesModule } from './machines/machines.module';
@@ -76,6 +77,7 @@ import configuration from './config/configuration';
     // Feature Modules (alphabetical order)
     AccountModule,
     AuthModule,
+    BomModule,
     ContactModule,
     CustomersModule,
     CommissionsModule,

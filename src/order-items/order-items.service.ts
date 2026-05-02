@@ -10,6 +10,7 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { OrderItemComponent } from 'src/entities/order-item-component.entity';
 import { CreateOrderItemComponentDto } from './dto/create-order-item-component.dto';
 import { RecordProductionDto } from './dto/record-production.dto';
+import { BomService } from 'src/bom/bom.service';
 
 @Injectable()
 export class OrderItemsService {
@@ -25,6 +26,7 @@ export class OrderItemsService {
     @InjectRepository(OrderItemComponent)
     private readonly orderItemComponentRepository: Repository<OrderItemComponent>,
     private readonly dataSource: DataSource,
+    private readonly bomService: BomService,
   ) {}
 
   private resolveComponentLineTotal(component: {
@@ -86,9 +88,17 @@ export class OrderItemsService {
 
     try {
       // Create the order item
-      const { orderItemNotes, components: componentDtos, ...orderItemData } = createOrderItemDto;
+      const { orderItemNotes, components: explicitComponents, ...orderItemData } = createOrderItemDto;
       void orderItemNotes;
       const orderItemDataToSave: Partial<OrderItems> = orderItemData;
+
+      const componentDtos =
+        explicitComponents !== undefined
+          ? explicitComponents
+          : await this.bomService.toOrderItemComponents(
+              createOrderItemDto.itemId,
+              parseFloat((createOrderItemDto.quantity || 0).toString()),
+            );
 
       const componentsTotalCost = this.calculateComponentsTotalCost(componentDtos);
       if (componentsTotalCost > 0) {
