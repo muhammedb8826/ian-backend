@@ -7,6 +7,8 @@ import { OrderItems } from 'src/entities/order-item.entity';
 import { Order } from 'src/entities/order.entity';
 import { OperatorStock } from 'src/entities/operator-stock.entity';
 import { PaymentTerm } from 'src/entities/payment-term.entity';
+import { OrderItemComponent } from 'src/entities/order-item-component.entity';
+import { CreateOrderItemComponentDto } from './dto/create-order-item-component.dto';
 
 @Injectable()
 export class OrderItemsService {
@@ -19,8 +21,62 @@ export class OrderItemsService {
     private readonly operatorStockRepository: Repository<OperatorStock>,
     @InjectRepository(PaymentTerm)
     private readonly paymentTermRepository: Repository<PaymentTerm>,
+    @InjectRepository(OrderItemComponent)
+    private readonly orderItemComponentRepository: Repository<OrderItemComponent>,
     private readonly dataSource: DataSource,
   ) {}
+
+  private resolveComponentLineTotal(component: {
+    quantity?: number;
+    unitCost?: number;
+    totalCost?: number;
+  }): number {
+    const qty = parseFloat((component.quantity ?? 0).toString());
+    const unitCost = parseFloat((component.unitCost ?? 0).toString());
+    const computed = qty * unitCost;
+
+    if (component.totalCost === undefined || component.totalCost === null) {
+      return computed;
+    }
+    const explicit = parseFloat(component.totalCost.toString());
+    if (Number.isNaN(explicit)) {
+      return computed;
+    }
+    if (explicit === 0 && computed > 0) {
+      return computed;
+    }
+    return explicit;
+  }
+
+  private calculateComponentsTotalCost(components?: Array<{ quantity?: number; unitCost?: number; totalCost?: number }>): number {
+    if (!components || components.length === 0) {
+      return 0;
+    }
+
+    return components.reduce((sum, component) => sum + this.resolveComponentLineTotal(component), 0);
+  }
+
+  private buildOrderItemComponents(orderItemId: string, components?: CreateOrderItemComponentDto[]) {
+    if (!components || components.length === 0) {
+      return [];
+    }
+
+    return components.map(component =>
+      this.orderItemComponentRepository.create({
+        orderItemId,
+        itemId: component.itemId,
+        uomId: component.uomId,
+        quantity: parseFloat((component.quantity || 0).toString()),
+        unitCost: parseFloat((component.unitCost || 0).toString()),
+        unitSellingPrice: component.unitSellingPrice != null
+          ? parseFloat(component.unitSellingPrice.toString())
+          : null,
+        totalCost: this.resolveComponentLineTotal(component),
+        description: component.description || '',
+        notes: component.notes || '',
+      }),
+    );
+  }
 
   async create(createOrderItemDto: CreateOrderItemDto) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -29,10 +85,22 @@ export class OrderItemsService {
 
     try {
       // Create the order item
-      const orderItemData = { ...createOrderItemDto } as any;
-      delete orderItemData.orderItemNotes;
-      const orderItem = this.orderItemsRepository.create(orderItemData);
+      const { orderItemNotes, components: componentDtos, ...orderItemData } = createOrderItemDto;
+      void orderItemNotes;
+      const orderItemDataToSave: Partial<OrderItems> = orderItemData;
+
+      const componentsTotalCost = this.calculateComponentsTotalCost(componentDtos);
+      if (componentsTotalCost > 0) {
+        orderItemDataToSave.totalCost = componentsTotalCost;
+      }
+
+      const orderItem = this.orderItemsRepository.create(orderItemDataToSave);
       const createdOrderItem = await queryRunner.manager.save(OrderItems, orderItem);
+      const components = this.buildOrderItemComponents(createdOrderItem.id, componentDtos);
+
+      if (components.length > 0) {
+        await queryRunner.manager.save(OrderItemComponent, components);
+      }
 
       // Update order status based on all order items
       await this.updateOrderStatus(createOrderItemDto.orderId, queryRunner);
@@ -62,6 +130,9 @@ export class OrderItemsService {
         'pricing',
         'item',
         'service',
+        'components',
+        'components.item',
+        'components.uom',
         'orderItemNotes',
         'orderItemNotes.user'
       ]
@@ -77,6 +148,9 @@ export class OrderItemsService {
       .leftJoinAndSelect('orderItems.pricing', 'pricing')
       .leftJoinAndSelect('orderItems.item', 'item')
       .leftJoinAndSelect('orderItems.service', 'service')
+      .leftJoinAndSelect('orderItems.components', 'components')
+      .leftJoinAndSelect('components.item', 'componentItem')
+      .leftJoinAndSelect('components.uom', 'componentUom')
       .leftJoinAndSelect('orderItems.orderItemNotes', 'orderItemNotes')
       .leftJoinAndSelect('orderItemNotes.user', 'user')
       .orderBy('orderItems.createdAt', 'DESC')
@@ -153,7 +227,7 @@ export class OrderItemsService {
   async findOne(id: string) {
     return this.orderItemsRepository.findOne({
       where: { id },
-      relations: ['order', 'uom', 'pricing', 'item', 'service', 'nonStockService', 'orderItemNotes', 'orderItemNotes.user'],
+      relations: ['order', 'uom', 'pricing', 'item', 'service', 'nonStockService', 'components', 'components.item', 'components.uom', 'orderItemNotes', 'orderItemNotes.user'],
     });
   }
 
@@ -166,7 +240,7 @@ export class OrderItemsService {
       // Get the current order item to check status changes
       const currentOrderItem = await this.orderItemsRepository.findOne({
         where: { id },
-        relations: ['item'],
+        relations: ['item', 'components'],
       });
 
       if (!currentOrderItem) {
@@ -256,6 +330,8 @@ export class OrderItemsService {
         }
       }
 
+      const componentsTotalCost = this.calculateComponentsTotalCost(updateOrderItemDto.components);
+
       // Update the order item
       await queryRunner.manager.update(OrderItems, id, {
         orderId: updateOrderItemDto.orderId,
@@ -280,7 +356,17 @@ export class OrderItemsService {
         pricingId: updateOrderItemDto.pricingId,
         unit: parseFloat((updateOrderItemDto.unit || 0).toString()),
         baseUomId: updateOrderItemDto.baseUomId,
+        ...(updateOrderItemDto.components !== undefined ? { totalCost: componentsTotalCost } : {}),
       });
+
+      if (updateOrderItemDto.components !== undefined) {
+        await queryRunner.manager.delete(OrderItemComponent, { orderItemId: id });
+        const components = this.buildOrderItemComponents(id, updateOrderItemDto.components);
+
+        if (components.length > 0) {
+          await queryRunner.manager.save(OrderItemComponent, components);
+        }
+      }
 
       // Update order status based on all order items
       await this.updateOrderStatus(updateOrderItemDto.orderId, queryRunner);
@@ -289,7 +375,7 @@ export class OrderItemsService {
 
       return await this.orderItemsRepository.findOne({
         where: { id },
-        relations: ['order', 'item', 'service', 'pricing', 'uom'],
+        relations: ['order', 'item', 'service', 'pricing', 'uom', 'components', 'components.item', 'components.uom'],
       });
     } catch (error) {
       await queryRunner.rollbackTransaction();

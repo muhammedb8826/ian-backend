@@ -181,6 +181,55 @@ describe('ReportsService', () => {
     expect(report.orders[0].totalCost).toBe(75);
   });
 
+  it('uses order item component costs before pricing fallback', async () => {
+    const order = {
+      id: 'order-components',
+      series: 'ORD-005',
+      orderDate: new Date('2026-05-02T00:00:00.000Z'),
+      totalAmount: 500,
+      tax: 75,
+      grandTotal: 575,
+      status: 'Delivered',
+      orderSource: 'telegram',
+      customer: { fullName: 'Acme LED' },
+      salesPartner: null,
+      commission: [],
+      orderItems: [
+        {
+          quantity: 1,
+          totalAmount: 500,
+          unitPrice: 500,
+          unit: 100,
+          totalCost: 999,
+          sales: 500,
+          item: { name: 'LED Display' },
+          service: { name: 'Assembly' },
+          nonStockService: null,
+          pricing: {
+            costPrice: 5,
+            width: 10,
+            height: 10,
+          },
+          components: [
+            { totalCost: 120 },
+            { totalCost: 80 },
+          ],
+        },
+      ],
+    };
+
+    const { service } = createService([order]);
+
+    const report = await service.getCompanyProfitReport({
+      page: 1,
+      limit: 20,
+    });
+
+    expect(report.summary.totalCost).toBe(200);
+    expect(report.summary.grossProfit).toBe(300);
+    expect(report.orders[0].totalCost).toBe(200);
+  });
+
   it('only includes fixed cost allocation when explicitly requested', async () => {
     const order = {
       id: 'order-3',

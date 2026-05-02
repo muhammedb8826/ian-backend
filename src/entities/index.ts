@@ -7,6 +7,7 @@ export * from './fixed-cost.entity';
 export * from './item.entity';
 export * from './machine.entity';
 export * from './order-item-notes.entity';
+export * from './order-item-component.entity';
 export * from './order-item.entity';
 export * from './order.entity';
 export * from './operator-stock.entity';

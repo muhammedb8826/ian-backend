@@ -116,6 +116,9 @@ export class ReportsService {
       .leftJoinAndSelect('order.salesPartner', 'salesPartner')
       .leftJoinAndSelect('order.orderItems', 'orderItems')
       .leftJoinAndSelect('orderItems.item', 'item')
+      .leftJoinAndSelect('orderItems.components', 'orderItemComponents')
+      .leftJoinAndSelect('orderItemComponents.item', 'orderItemComponentItem')
+      .leftJoinAndSelect('orderItemComponents.uom', 'orderItemComponentUom')
       .leftJoinAndSelect('orderItems.service', 'service')
       .leftJoinAndSelect('orderItems.nonStockService', 'nonStockService')
       .leftJoinAndSelect('orderItems.pricing', 'pricing')
@@ -579,6 +582,15 @@ export class ReportsService {
   }
 
   private getOrderItemCost(orderItem: OrderItems): number {
+    const componentsCost = (orderItem.components ?? []).reduce(
+      (sum, component) => sum + this.toNumber(component.totalCost),
+      0,
+    );
+
+    if ((orderItem.components?.length ?? 0) > 0) {
+      return componentsCost;
+    }
+
     const pricing = orderItem.pricing;
     const unit = this.toNumber(orderItem.unit);
 

@@ -6,6 +6,7 @@ import { UOM } from './uom.entity';
 import { Service } from './service.entity';
 import { NonStockService } from './non-stock-service.entity';
 import { OrderItemNotes } from './order-item-notes.entity';
+import { OrderItemComponent } from './order-item-component.entity';
 
 @Entity('order_items')
 export class OrderItems {
@@ -86,6 +87,9 @@ export class OrderItems {
 
   @OneToMany(() => OrderItemNotes, orderItemNotes => orderItemNotes.orderItem)
   orderItemNotes: OrderItemNotes[];
+
+  @OneToMany(() => OrderItemComponent, component => component.orderItem)
+  components: OrderItemComponent[];
 
   @ManyToOne(() => Item, item => item.OrderItems)
   @JoinColumn({ name: 'itemId' })

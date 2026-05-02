@@ -1,4 +1,5 @@
 import { IsOptional } from "class-validator";
+import { CreateOrderItemComponentDto } from "./create-order-item-component.dto";
 
 export class CreateOrderItemDto {
     id: string;
@@ -28,4 +29,7 @@ export class CreateOrderItemDto {
     status: string;
 
     orderItemNotes: string[];
+
+    @IsOptional()
+    components?: CreateOrderItemComponentDto[];
 }

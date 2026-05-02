@@ -14,6 +14,8 @@ import { FixedCost } from 'src/entities/fixed-cost.entity';
 import { Item } from 'src/entities/item.entity';
 import { UOM } from 'src/entities/uom.entity';
 import { UnitCategory } from 'src/entities/unit-category.entity';
+import { OrderItemComponent } from 'src/entities/order-item-component.entity';
+import { CreateOrderItemComponentDto } from 'src/order-items/dto/create-order-item-component.dto';
 
 @Injectable()
 export class OrdersService {
@@ -36,12 +38,70 @@ export class OrdersService {
     private readonly fixedCostRepository: Repository<FixedCost>,
     @InjectRepository(Item)
     private readonly itemRepository: Repository<Item>,
+    @InjectRepository(OrderItemComponent)
+    private readonly orderItemComponentRepository: Repository<OrderItemComponent>,
     @InjectRepository(UOM)
     private readonly uomRepository: Repository<UOM>,
     @InjectRepository(UnitCategory)
     private readonly unitCategoryRepository: Repository<UnitCategory>,
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Resolves stored line total. Clients often send totalCost: 0 as a placeholder; treat that as
+   * "derive from quantity * unitCost" when that product is positive.
+   */
+  private resolveComponentLineTotal(component: {
+    quantity?: number;
+    unitCost?: number;
+    totalCost?: number;
+  }): number {
+    const qty = parseFloat((component.quantity ?? 0).toString());
+    const unitCost = parseFloat((component.unitCost ?? 0).toString());
+    const computed = qty * unitCost;
+
+    if (component.totalCost === undefined || component.totalCost === null) {
+      return computed;
+    }
+    const explicit = parseFloat(component.totalCost.toString());
+    if (Number.isNaN(explicit)) {
+      return computed;
+    }
+    if (explicit === 0 && computed > 0) {
+      return computed;
+    }
+    return explicit;
+  }
+
+  private calculateComponentsTotalCost(components?: Array<{ quantity?: number; unitCost?: number; totalCost?: number }>): number {
+    if (!components || components.length === 0) {
+      return 0;
+    }
+
+    return components.reduce((sum, component) => sum + this.resolveComponentLineTotal(component), 0);
+  }
+
+  private buildOrderItemComponents(orderItemId: string, components?: CreateOrderItemComponentDto[]) {
+    if (!components || components.length === 0) {
+      return [];
+    }
+
+    return components.map(component =>
+      this.orderItemComponentRepository.create({
+        orderItemId,
+        itemId: component.itemId,
+        uomId: component.uomId,
+        quantity: parseFloat((component.quantity || 0).toString()),
+        unitCost: parseFloat((component.unitCost || 0).toString()),
+        unitSellingPrice: component.unitSellingPrice != null
+          ? parseFloat(component.unitSellingPrice.toString())
+          : null,
+        totalCost: this.resolveComponentLineTotal(component),
+        description: component.description || '',
+        notes: component.notes || '',
+      }),
+    );
+  }
 
   async create(createOrderDto: CreateOrderDto) {
     // Validate required fields
@@ -135,6 +195,7 @@ export class OrdersService {
         // Only calculate pricing if service information is provided
         let totalCostResult = { totalCost: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
         let salesResult = { sales: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
+        const componentsTotalCost = this.calculateComponentsTotalCost(item.components);
 
         if (serviceIdForCalculation) {
           try {
@@ -163,6 +224,8 @@ export class OrdersService {
           }
         }
 
+        const totalCost = item.components?.length > 0 ? componentsTotalCost : totalCostResult.totalCost || 0;
+
         return this.orderItemsRepository.create({
           orderId: savedOrder.id,
           itemId: item.itemId,
@@ -184,12 +247,19 @@ export class OrdersService {
           pricingId: item.pricingId,
           unit: totalCostResult.unit || parseFloat((item.unit || 0).toString()),
           baseUomId: totalCostResult.baseUomId || item.baseUomId || item.uomId,
-          totalCost: totalCostResult.totalCost || 0,
+          totalCost,
           sales: salesResult.sales || 0,
         });
       }));
 
-      await queryRunner.manager.save(OrderItems, orderItems);
+      const savedOrderItems = await queryRunner.manager.save(OrderItems, orderItems);
+      const components = savedOrderItems.flatMap((savedOrderItem, index) =>
+        this.buildOrderItemComponents(savedOrderItem.id, createOrderDto.orderItems[index]?.components),
+      );
+
+      if (components.length > 0) {
+        await queryRunner.manager.save(OrderItemComponent, components);
+      }
 
       // Stock reduction is now handled when status changes to "Printed" in the order items service
       // Removed stock reduction from order creation
@@ -282,6 +352,9 @@ export class OrdersService {
         relations: [
           'customer', 
           'orderItems', 
+          'orderItems.components',
+          'orderItems.components.item',
+          'orderItems.components.uom',
           'paymentTerm', 
           'paymentTerm.transactions',
           'commission', 
@@ -318,6 +391,9 @@ export class OrdersService {
       .leftJoinAndSelect('order.customer', 'customer')
       .leftJoinAndSelect('order.orderItems', 'orderItems')
       .leftJoinAndSelect('orderItems.item', 'orderItemsItem')
+      .leftJoinAndSelect('orderItems.components', 'orderItemsComponents')
+      .leftJoinAndSelect('orderItemsComponents.item', 'orderItemsComponentItem')
+      .leftJoinAndSelect('orderItemsComponents.uom', 'orderItemsComponentUom')
       .leftJoinAndSelect('orderItems.pricing', 'orderItemsPricing')
       .leftJoinAndSelect('orderItems.service', 'orderItemsService')
       .leftJoinAndSelect('orderItems.nonStockService', 'orderItemsNonStockService')
@@ -422,6 +498,9 @@ export class OrdersService {
       relations: [
         'customer', 
         'orderItems', 
+        'orderItems.components',
+        'orderItems.components.item',
+        'orderItems.components.uom',
         'orderItems.pricing',
         'orderItems.service',
         'orderItems.nonStockService',
@@ -447,6 +526,9 @@ export class OrdersService {
       relations: [
         'customer', 
         'orderItems', 
+        'orderItems.components',
+        'orderItems.components.item',
+        'orderItems.components.uom',
         'orderItems.pricing',
         'orderItems.service',
         'orderItems.nonStockService',
@@ -468,6 +550,7 @@ export class OrdersService {
       where: { id },
       relations: [
         'orderItems',
+        'orderItems.components',
         'paymentTerm', 
         'paymentTerm.transactions',
         'commission', 
@@ -573,6 +656,11 @@ export class OrdersService {
         // Only calculate pricing if service information is provided
         let totalCostResult = { totalCost: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
         let salesResult = { sales: 0, unit: 0, baseUomId: item.baseUomId || item.uomId };
+        const existingOrderItem = item.id
+          ? existingOrder.orderItems.find(existingItem => existingItem.id === item.id)
+          : undefined;
+        const costComponents = item.components !== undefined ? item.components : existingOrderItem?.components;
+        const componentsTotalCost = this.calculateComponentsTotalCost(costComponents);
 
         if (serviceId) {
           try {
@@ -601,6 +689,8 @@ export class OrdersService {
           }
         }
 
+        const totalCost = costComponents?.length > 0 ? componentsTotalCost : totalCostResult.totalCost || 0;
+
         if (item.id) {
           // Update existing order item
           await queryRunner.manager.update(OrderItems, item.id, {
@@ -623,12 +713,21 @@ export class OrdersService {
             pricingId: item.pricingId,
             unit: totalCostResult.unit || parseFloat((item.unit || 0).toString()),
             baseUomId: totalCostResult.baseUomId || item.baseUomId || item.uomId,
-            totalCost: totalCostResult.totalCost || 0,
+            totalCost,
             sales: salesResult.sales || 0,
           });
+
+          if (item.components !== undefined) {
+            await queryRunner.manager.delete(OrderItemComponent, { orderItemId: item.id });
+            const components = this.buildOrderItemComponents(item.id, item.components);
+
+            if (components.length > 0) {
+              await queryRunner.manager.save(OrderItemComponent, components);
+            }
+          }
         } else {
           // Create new order item
-          await queryRunner.manager.save(OrderItems, {
+          const savedOrderItem = await queryRunner.manager.save(OrderItems, {
             orderId: id,
             itemId: item.itemId,
             serviceId: isNonStockService ? null : item.serviceId,
@@ -649,9 +748,15 @@ export class OrdersService {
             pricingId: item.pricingId,
             unit: totalCostResult.unit || parseFloat((item.unit || 0).toString()),
             baseUomId: totalCostResult.baseUomId || item.baseUomId || item.uomId,
-            totalCost: totalCostResult.totalCost || 0,
+            totalCost,
             sales: salesResult.sales || 0,
           });
+
+          const components = this.buildOrderItemComponents(savedOrderItem.id, item.components);
+
+          if (components.length > 0) {
+            await queryRunner.manager.save(OrderItemComponent, components);
+          }
         }
       }
 
@@ -762,6 +867,9 @@ export class OrdersService {
         relations: [
           'customer',
           'orderItems',
+          'orderItems.components',
+          'orderItems.components.item',
+          'orderItems.components.uom',
           'orderItems.pricing',
           'paymentTerm',
           'paymentTerm.transactions',
@@ -794,7 +902,7 @@ export class OrdersService {
     try {
       const order = await this.orderRepository.findOne({ 
         where: { id },
-        relations: ['orderItems', 'paymentTerm', 'paymentTerm.transactions', 'commission', 'commission.transactions']
+        relations: ['orderItems', 'orderItems.components', 'paymentTerm', 'paymentTerm.transactions', 'commission', 'commission.transactions']
       });
       
       if (!order) {
@@ -1213,6 +1321,9 @@ export class OrdersService {
       where: { id: orderId },
       relations: [
         'orderItems',
+        'orderItems.components',
+        'orderItems.components.item',
+        'orderItems.components.uom',
         'commission',
         'commission.transactions'
       ]
@@ -1541,6 +1652,9 @@ export class OrdersService {
       .leftJoinAndSelect('order.orderItems', 'orderItems')
       .leftJoinAndSelect('orderItems.item', 'orderItemsItem')
       .leftJoinAndSelect('orderItems.service', 'orderItemsService')
+      .leftJoinAndSelect('orderItems.components', 'orderItemsComponents')
+      .leftJoinAndSelect('orderItemsComponents.item', 'orderItemsComponentItem')
+      .leftJoinAndSelect('orderItemsComponents.uom', 'orderItemsComponentUom')
       .leftJoinAndSelect('orderItems.pricing', 'orderItemsPricing')
       .leftJoinAndSelect('orderItems.uom', 'orderItemsUom')
       .leftJoinAndSelect('orderItems.baseUom', 'orderItemsBaseUom')
@@ -1615,7 +1729,8 @@ export class OrdersService {
         const pricing = orderItem.pricing;
         if (!pricing) continue;
 
-        const totalCostForItem = metersquare * (pricing.costPrice || 0);
+        const componentsCost = (orderItem.components ?? []).reduce((sum, component) => sum + (component.totalCost || 0), 0);
+        const totalCostForItem = (orderItem.components?.length ?? 0) > 0 ? componentsCost : metersquare * (pricing.costPrice || 0);
         const salesForItem = metersquare * pricing.sellingPrice;
         
         const orderTotalSales = order.orderItems.reduce((s, item) => {

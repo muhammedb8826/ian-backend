@@ -13,6 +13,7 @@ import { FixedCost } from 'src/entities/fixed-cost.entity';
 import { Item } from 'src/entities/item.entity';
 import { UOM } from 'src/entities/uom.entity';
 import { UnitCategory } from 'src/entities/unit-category.entity';
+import { OrderItemComponent } from 'src/entities/order-item-component.entity';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { UnitCategory } from 'src/entities/unit-category.entity';
       FixedCost,
       Item,
       UOM,
-      UnitCategory
+      UnitCategory,
+      OrderItemComponent
     ])
   ],
   controllers: [OrdersController],
