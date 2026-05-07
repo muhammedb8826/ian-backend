@@ -4,7 +4,7 @@ Production operators report how many units of a line are completed (for example 
 
 - increases **`quantityProduced`** on that order item by **`additionalQuantity`**
 - deducts **`(additionalQuantity / quantity) * unit`** from **operator stock** for the line’s `itemId` (same rule as full print, but proportional), **except** for **non-stock services** (`isNonStockService: true`), where only the counters are updated
-- when **`quantityProduced`** reaches **`quantity`**, sets the line **`status`** to **`Printed`** and refreshes the parent order status
+- refreshes the line **`status`** based on cumulative step counters and refreshes the parent order status
 
 ## Endpoint
 
@@ -28,6 +28,7 @@ Returns the updated order item (same shape as `GET` single item), including `qua
 ### Derived values (frontend)
 
 - **Remaining to produce:** `quantity - quantityProduced`
+- **Remaining to print (if using step flow):** `quantity - quantityPrinted`
 
 ### Errors
 
