@@ -32,6 +32,18 @@ export class ItemBomLine {
   @Column('float')
   quantityPerUnit: number;
 
+  /**
+   * Optional fixed dimensions of each consumed piece. When both `width` and
+   * `height` are set, the component is treated as area-based:
+   *   consumed quantity = quantityPerUnit * width * height * orderQty
+   * and `standardUnitCost` is interpreted as cost per square unit.
+   */
+  @Column('float', { nullable: true })
+  width: number;
+
+  @Column('float', { nullable: true })
+  height: number;
+
   @Column('float', { nullable: true })
   standardUnitCost: number;
 

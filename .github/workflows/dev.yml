@@ -1,9 +1,9 @@
-name: Deploy ASAL API to cPanel via FTP
+name: Deploy Ian Backend API to cPanel via FTP
 
 on:
   push:
     branches:
-      - master
+      - dev
 
 jobs:
   web-deploy:
@@ -41,9 +41,9 @@ jobs:
     - name: Deploy runtime bundle to cPanel via FTP
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        target: ${{ secrets.FTP_SERVER_DIR }}
+        server: ${{ secrets.FTP_SERVER_DEV }}
+        username: ${{ secrets.FTP_USERNAME_DEV  }}
+        password: ${{ secrets.FTP_PASSWORD_DEV }}
+        target: ${{ secrets.FTP_SERVER_DIR_DEV }}
         local-dir: deploy/
         protocol: ftp

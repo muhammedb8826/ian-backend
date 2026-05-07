@@ -80,7 +80,9 @@ type ItemBomLineInput = {
   componentItemId: string;
   uomId: string;
   quantityPerUnit: number; // consumed per 1 unit of the parent catalog item
-  standardUnitCost?: number;
+  width?: number; // optional, see "Area-based BOM lines" below
+  height?: number; // must be sent together with width
+  standardUnitCost?: number; // per UOM, OR per square unit when width & height set
   standardUnitSellingPrice?: number;
   description?: string;
   sortOrder?: number;
@@ -107,12 +109,28 @@ Maintain one BOM per catalog `itemId`. The backend expands BOM lines into persis
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
 | `POST` | `/api/v1/item-bom` | Create BOM for an item. Fails with conflict if a BOM already exists for that `itemId` — use `PATCH` instead. |
+| `GET` | `/api/v1/item-bom?page=1&limit=50` | List BOMs (paginated). |
 | `GET` | `/api/v1/item-bom/item/:itemId` | Load BOM + lines for a catalog item (for pickers / previews). |
 | `GET` | `/api/v1/item-bom/:id` | Load BOM by BOM id. |
 | `PATCH` | `/api/v1/item-bom/:id` | Update name, `isActive`, and/or replace all `lines`. |
 | `DELETE` | `/api/v1/item-bom/:id` | Delete BOM. |
 
 **Costs on expansion:** for each BOM line, the backend uses `standardUnitCost` when set; otherwise it uses the minimum `pricing.costPrice` among pricings for `componentItemId`. Expanded rows get `quantity = quantityPerUnit * orderLineQuantity`. If the order line `quantity` is zero or negative, no components are created from the BOM.
+
+### Area-based BOM lines (raw materials with fixed dimensions)
+
+Some raw materials are consumed by **area** — for example, a vinyl panel sized `1.22m × 2.44m`, where the parent (e.g., LED display) needs 4 such panels per unit. Set `width` and `height` on the BOM line to model this. They are constant on the BOM (they describe the **piece** being consumed), independent of the order line's parent dimensions.
+
+When **both** `width` and `height` are set on a BOM line:
+
+- `component.quantity = quantityPerUnit * width * height * orderLineQuantity` (in the line's `uomId`, e.g., sqm)
+- `standardUnitCost` is treated as **cost per square unit**
+- `component.totalCost = component.quantity * standardUnitCost`
+- The expanded `description` includes the per-piece dimensions, e.g., `"Vinyl panel (4 pcs @ 1.22x2.44)"`
+
+When **neither** is set, behavior is unchanged: `quantity = quantityPerUnit * orderLineQuantity`, `unitCost` is per UOM.
+
+You must send `width` and `height` together; sending only one is rejected.
 
 ## Automatic resolution from BOM
 
