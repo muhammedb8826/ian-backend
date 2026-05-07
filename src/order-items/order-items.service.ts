@@ -43,7 +43,6 @@ export class OrderItemsService {
     const orderedQty = this.clampNonNegativeFloat(orderItem.quantity);
     const delivered = this.clampNonNegativeFloat((orderItem as any).quantityDelivered);
     const qc = this.clampNonNegativeFloat((orderItem as any).quantityQualityControlled);
-    const printed = this.clampNonNegativeFloat((orderItem as any).quantityPrinted);
     const produced = this.clampNonNegativeFloat(orderItem.quantityProduced);
 
     if (orderedQty <= 0) return orderItem.status;
@@ -54,9 +53,8 @@ export class OrderItemsService {
     if (qc >= orderedQty - 1e-9) return 'Completed';
     if (qc > 0) return 'Quality Control';
 
-    if (printed >= orderedQty - 1e-9) return 'Printed';
-    if (printed > 0) return 'Printing';
-
+    // Printing == Production (same step)
+    if (produced >= orderedQty - 1e-9) return 'Printed';
     if (produced > 0) return 'Production';
     return orderItem.status || 'Received';
   }
@@ -363,6 +361,8 @@ export class OrderItemsService {
 
       await queryRunner.manager.update(OrderItems, orderItemId, {
         quantityProduced: newProduced,
+        // Keep legacy column in sync (printing == production)
+        quantityPrinted: newProduced,
         status: nextStatus,
       });
 
@@ -384,9 +384,11 @@ export class OrderItemsService {
 
   /**
    * Printing step:
-   * - ALL: print everything remaining (quantity - quantityPrinted)
-   * - COMPLETED: print only produced-but-unprinted (quantityProduced - quantityPrinted)
-   * - CUSTOM: print an explicit quantity (bounded by remaining to print)
+   * Printing == Production (same step). This endpoint advances quantityProduced.
+   *
+   * - ALL: advance to full quantity (print all)
+   * - COMPLETED: no-op (already completed == produced)
+   * - CUSTOM: advance by an explicit quantity (bounded by remaining)
    */
   async recordPrint(orderItemId: string, dto: RecordPrintDto) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -409,35 +411,31 @@ export class OrderItemsService {
       }
 
       const produced = this.clampNonNegativeFloat(orderItem.quantityProduced);
-      const printed = this.clampNonNegativeFloat((orderItem as any).quantityPrinted);
-      const remainingToPrint = Math.max(0, orderedQty - printed);
-      const producedUnprinted = Math.max(0, Math.min(orderedQty, produced) - printed);
+      const remainingToProduce = Math.max(0, orderedQty - produced);
 
-      let additionalToPrint = 0;
+      let additionalToProduce = 0;
       if (dto.mode === 'ALL') {
-        additionalToPrint = remainingToPrint;
+        additionalToProduce = remainingToProduce;
       } else if (dto.mode === 'COMPLETED') {
-        additionalToPrint = producedUnprinted;
+        additionalToProduce = 0;
       } else {
         const requested = this.clampNonNegativeFloat(dto.quantity);
         if (!(requested > 0)) {
           throw new BadRequestException('quantity must be a positive number when mode is CUSTOM');
         }
-        additionalToPrint = Math.min(requested, remainingToPrint);
+        additionalToProduce = Math.min(requested, remainingToProduce);
       }
 
-      if (!(additionalToPrint > 0)) {
-        throw new BadRequestException('Nothing to print (already fully printed or no completed quantity)');
+      if (!(additionalToProduce > 0)) {
+        throw new BadRequestException('Nothing to record (already fully completed/printed)');
       }
 
-      const newPrinted = printed + additionalToPrint;
+      const newProduced = produced + additionalToProduce;
 
-      // If printing happens without prior production records (print-all flow),
-      // advance quantityProduced to match printed quantity and deduct stock proportionally.
-      const impliedProducedTarget = Math.max(produced, newPrinted);
-      const impliedProducedDelta = Math.max(0, impliedProducedTarget - produced);
-      if (impliedProducedDelta > 0 && !orderItem.isNonStockService) {
-        const unitPortion = (orderItem.unit / orderedQty) * impliedProducedDelta;
+      // Printing == Production, so this step always behaves like production:
+      // deduct stock proportionally (stock services only).
+      if (additionalToProduce > 0 && !orderItem.isNonStockService) {
+        const unitPortion = (orderItem.unit / orderedQty) * additionalToProduce;
         if (unitPortion > 0) {
           const operatorStock = await queryRunner.manager.findOne(OperatorStock, {
             where: { itemId: orderItem.itemId },
@@ -461,17 +459,17 @@ export class OrderItemsService {
         }
       }
 
-      await this.appendEvent(queryRunner, orderItemId, 'PRINT', additionalToPrint, dto.mode);
+      await this.appendEvent(queryRunner, orderItemId, 'PRINT', additionalToProduce, dto.mode);
 
       const nextStatus = this.computeLineStatus({
         ...orderItem,
-        quantityProduced: impliedProducedTarget,
-        quantityPrinted: newPrinted,
+        quantityProduced: newProduced,
       } as any);
 
       await queryRunner.manager.update(OrderItems, orderItemId, {
-        ...(impliedProducedDelta > 0 ? { quantityProduced: impliedProducedTarget } : {}),
-        quantityPrinted: newPrinted,
+        quantityProduced: newProduced,
+        // Keep legacy column in sync (printing == production)
+        quantityPrinted: newProduced,
         status: nextStatus,
       });
 
@@ -507,12 +505,12 @@ export class OrderItemsService {
       }
 
       const orderedQty = this.clampNonNegativeFloat(orderItem.quantity);
-      const printed = this.clampNonNegativeFloat((orderItem as any).quantityPrinted);
+      const produced = this.clampNonNegativeFloat(orderItem.quantityProduced);
       const qc = this.clampNonNegativeFloat((orderItem as any).quantityQualityControlled);
 
-      const remainingPrintedToQc = Math.max(0, Math.min(orderedQty, printed) - qc);
-      if (additional > remainingPrintedToQc + 1e-9) {
-        throw new BadRequestException(`Cannot QC ${additional}; only ${remainingPrintedToQc} printed units remain for QC`);
+      const remainingProducedToQc = Math.max(0, Math.min(orderedQty, produced) - qc);
+      if (additional > remainingProducedToQc + 1e-9) {
+        throw new BadRequestException(`Cannot QC ${additional}; only ${remainingProducedToQc} completed units remain for QC`);
       }
 
       const newQc = qc + additional;

@@ -1,8 +1,12 @@
 # Print / Quality Control / Delivery (partial flow)
 
-This guide documents the step-based flow for order line items where quantities can be partial at each step:
+This guide documents the step-based flow for order line items where quantities can be partial at each step.
 
-- production recorded → print recorded (remaining stays unprinted) → quality control → delivered
+Important: **Printing and production are the same step** in this backend. Both “record production” and “record print” advance the same counter: `quantityProduced`.
+
+Flows:
+
+- record production/print → quality control → delivered
 - print all → quality control → delivered
 
 Each step appends a row to `order_item_events`, so every line item has a complete history.
@@ -32,11 +36,9 @@ Body:
 
 Rules:
 
-- `ALL` prints everything remaining: `quantity - quantityPrinted`
-- `COMPLETED` prints only what is already produced but still unprinted: `quantityProduced - quantityPrinted`
-- `CUSTOM` prints an explicit quantity, bounded by remaining to print
-
-If you print without prior production records (the **print all** flow), the backend will **advance `quantityProduced` up to the printed quantity** and deduct operator stock proportionally (stock services only).
+- `ALL` advances `quantityProduced` to full: `quantity - quantityProduced`
+- `COMPLETED` is not meaningful when printing==production (completed == produced)
+- `CUSTOM` advances by an explicit quantity, bounded by remaining
 
 ### Quality control
 
@@ -51,7 +53,7 @@ Content-Type: application/json
 
 Rules:
 
-- QC can only be recorded for printed units: it is bounded by `quantityPrinted - quantityQualityControlled`
+- QC can only be recorded for completed/printed units: it is bounded by `quantityProduced - quantityQualityControlled`
 
 ### Delivery (partial supported)
 
@@ -77,7 +79,6 @@ Line-item `status` is derived from cumulative quantities:
 - Partially delivered → `Until Delivery`
 - Fully QC → `Completed`
 - Partially QC → `Quality Control`
-- Fully printed → `Printed`
-- Partially printed → `Printing`
-- Produced but not printed yet → `Production`
+- Fully produced/printed → `Printed`
+- Partially produced/printed → `Production`
 
