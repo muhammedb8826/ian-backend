@@ -31,7 +31,7 @@ jobs:
         rm -rf deploy
         mkdir -p deploy
         cp package.json package-lock.json deploy/
-        cp tsconfig.json tsconfig.build.json nest-cli.json deploy/
+        cp tsconfig.json tsconfig.build.json nest-cli.json typeorm.config.ts deploy/
         mkdir -p deploy/src
         cp -r src/* deploy/src/
 
