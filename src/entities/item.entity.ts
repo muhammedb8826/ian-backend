@@ -49,6 +49,10 @@ export class Item {
   @Column()
   quantity: number;
 
+  /** Optional catalog purchase reference cost (per purchase UOM / business rule). Used for BOM cost fallbacks. */
+  @Column('float', { nullable: true })
+  purchase_price: number;
+
   @Column({ nullable: true })
   unitCategoryId: string;
 
