@@ -149,6 +149,9 @@ export class ItemsService {
     if (updateItemDto.purchaseUomId) updateData.purchaseUomId = updateItemDto.purchaseUomId;
     if (updateItemDto.machineId) updateData.machineId = updateItemDto.machineId;
     if (updateItemDto.unitCategoryId) updateData.unitCategoryId = updateItemDto.unitCategoryId;
+    if (updateItemDto.purchase_price !== undefined && updateItemDto.purchase_price !== null) {
+      updateData.purchase_price = updateItemDto.purchase_price;
+    }
   
     try {
       await this.itemRepository.update(id, updateData);
