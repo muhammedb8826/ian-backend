@@ -62,7 +62,12 @@ export class BomService {
     const out: CreateOrderItemComponentDto[] = [];
     for (const line of bom.lines) {
       const perUnit = parseFloat((line.quantityPerUnit || 0).toString());
-      const lineQty = perUnit * qty;
+      const width = line.width != null ? parseFloat(line.width.toString()) : null;
+      const height = line.height != null ? parseFloat(line.height.toString()) : null;
+      const hasArea = width != null && height != null && width > 0 && height > 0;
+      const area = hasArea ? width * height : 1;
+      const lineQty = perUnit * area * qty;
+
       let unitCost = line.standardUnitCost != null ? parseFloat(line.standardUnitCost.toString()) : null;
       if (unitCost === null || Number.isNaN(unitCost)) {
         unitCost = await this.resolveDefaultUnitCost(line.componentItemId);
@@ -73,13 +78,18 @@ export class BomService {
         selling = parseFloat(line.standardUnitSellingPrice.toString());
       }
 
+      const baseDescription = line.description || '';
+      const description = hasArea
+        ? `${baseDescription ? baseDescription + ' ' : ''}(${perUnit} pc${perUnit === 1 ? '' : 's'} @ ${width}x${height})`.trim()
+        : baseDescription || undefined;
+
       out.push({
         itemId: line.componentItemId,
         uomId: line.uomId,
         quantity: lineQty,
         unitCost: unitCost ?? 0,
         unitSellingPrice: selling,
-        description: line.description || undefined,
+        description,
       });
     }
     return out;
@@ -95,6 +105,34 @@ export class BomService {
       .where('bom.itemId = :itemId', { itemId })
       .orderBy('line.sortOrder', 'ASC')
       .getOne();
+  }
+
+  async findAll(opts?: { page?: number; limit?: number }) {
+    const page = opts?.page && opts.page > 0 ? opts.page : 1;
+    const limit = opts?.limit && opts.limit > 0 ? Math.min(opts.limit, 500) : 50;
+    const skip = (page - 1) * limit;
+
+    const qb = this.itemBomRepository
+      .createQueryBuilder('bom')
+      .leftJoinAndSelect('bom.item', 'item')
+      .leftJoinAndSelect('bom.lines', 'line')
+      .leftJoinAndSelect('line.componentItem', 'componentItem')
+      .leftJoinAndSelect('line.uom', 'uom')
+      .orderBy('bom.updatedAt', 'DESC')
+      .addOrderBy('line.sortOrder', 'ASC')
+      .skip(skip)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string) {
@@ -142,6 +180,8 @@ export class BomService {
         componentItemId: l.componentItemId,
         uomId: l.uomId,
         quantityPerUnit: parseFloat((l.quantityPerUnit ?? 0).toString()),
+        width: l.width != null ? parseFloat(l.width.toString()) : null,
+        height: l.height != null ? parseFloat(l.height.toString()) : null,
         standardUnitCost: l.standardUnitCost != null ? parseFloat(l.standardUnitCost.toString()) : null,
         standardUnitSellingPrice:
           l.standardUnitSellingPrice != null ? parseFloat(l.standardUnitSellingPrice.toString()) : null,
@@ -177,6 +217,8 @@ export class BomService {
             componentItemId: l.componentItemId,
             uomId: l.uomId,
             quantityPerUnit: parseFloat((l.quantityPerUnit ?? 0).toString()),
+            width: l.width != null ? parseFloat(l.width.toString()) : null,
+            height: l.height != null ? parseFloat(l.height.toString()) : null,
             standardUnitCost: l.standardUnitCost != null ? parseFloat(l.standardUnitCost.toString()) : null,
             standardUnitSellingPrice:
               l.standardUnitSellingPrice != null ? parseFloat(l.standardUnitSellingPrice.toString()) : null,
@@ -200,7 +242,13 @@ export class BomService {
   }
 
   private async validateBomLines(
-    lines: { componentItemId: string; uomId: string; quantityPerUnit: number }[],
+    lines: {
+      componentItemId: string;
+      uomId: string;
+      quantityPerUnit: number;
+      width?: number;
+      height?: number;
+    }[],
   ) {
     for (const l of lines) {
       const okItem = await this.itemRepository.exist({ where: { id: l.componentItemId } });
@@ -210,6 +258,16 @@ export class BomService {
       const per = parseFloat((l.quantityPerUnit ?? 0).toString());
       if (per < 0) {
         throw new ConflictException('quantityPerUnit cannot be negative');
+      }
+      const w = l.width != null ? parseFloat(l.width.toString()) : null;
+      const h = l.height != null ? parseFloat(l.height.toString()) : null;
+      if ((w != null && w < 0) || (h != null && h < 0)) {
+        throw new ConflictException('width/height cannot be negative');
+      }
+      if ((w != null && h == null) || (h != null && w == null)) {
+        throw new ConflictException(
+          'width and height must be provided together for an area-based BOM line',
+        );
       }
     }
   }

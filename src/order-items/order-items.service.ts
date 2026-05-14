@@ -10,7 +10,10 @@ import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { OrderItemComponent } from 'src/entities/order-item-component.entity';
 import { CreateOrderItemComponentDto } from './dto/create-order-item-component.dto';
 import { RecordProductionDto } from './dto/record-production.dto';
+import { RecordPrintDto } from './dto/record-print.dto';
+import { RecordStepQuantityDto } from './dto/record-step-quantity.dto';
 import { BomService } from 'src/bom/bom.service';
+import { OrderItemEvent, OrderItemEventType } from 'src/entities/order-item-event.entity';
 
 @Injectable()
 export class OrderItemsService {
@@ -25,9 +28,52 @@ export class OrderItemsService {
     private readonly paymentTermRepository: Repository<PaymentTerm>,
     @InjectRepository(OrderItemComponent)
     private readonly orderItemComponentRepository: Repository<OrderItemComponent>,
+    @InjectRepository(OrderItemEvent)
+    private readonly orderItemEventRepository: Repository<OrderItemEvent>,
     private readonly dataSource: DataSource,
     private readonly bomService: BomService,
   ) {}
+
+  private clampNonNegativeFloat(value: any): number {
+    const n = parseFloat((value ?? 0).toString());
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  private computeLineStatus(orderItem: OrderItems): string {
+    const orderedQty = this.clampNonNegativeFloat(orderItem.quantity);
+    const delivered = this.clampNonNegativeFloat((orderItem as any).quantityDelivered);
+    const qc = this.clampNonNegativeFloat((orderItem as any).quantityQualityControlled);
+    const produced = this.clampNonNegativeFloat(orderItem.quantityProduced);
+
+    if (orderedQty <= 0) return orderItem.status;
+
+    if (delivered >= orderedQty - 1e-9) return 'Delivered';
+    if (delivered > 0) return 'Until Delivery';
+
+    if (qc >= orderedQty - 1e-9) return 'Completed';
+    if (qc > 0) return 'Quality Control';
+
+    // Printing == Production (same step)
+    if (produced >= orderedQty - 1e-9) return 'Printed';
+    if (produced > 0) return 'Production';
+    return orderItem.status || 'Received';
+  }
+
+  private async appendEvent(
+    queryRunner: any,
+    orderItemId: string,
+    type: OrderItemEventType,
+    quantity: number,
+    note?: string | null,
+  ) {
+    const event = this.orderItemEventRepository.create({
+      orderItemId,
+      type,
+      quantity,
+      note: note ?? null,
+    });
+    await queryRunner.manager.save(OrderItemEvent, event);
+  }
 
   private resolveComponentLineTotal(component: {
     quantity?: number;
@@ -145,7 +191,8 @@ export class OrderItemsService {
         'components.item',
         'components.uom',
         'orderItemNotes',
-        'orderItemNotes.user'
+        'orderItemNotes.user',
+        'events'
       ]
     });
   }
@@ -238,7 +285,7 @@ export class OrderItemsService {
   async findOne(id: string) {
     return this.orderItemsRepository.findOne({
       where: { id },
-      relations: ['order', 'uom', 'pricing', 'item', 'service', 'nonStockService', 'components', 'components.item', 'components.uom', 'orderItemNotes', 'orderItemNotes.user'],
+      relations: ['order', 'uom', 'pricing', 'item', 'service', 'nonStockService', 'components', 'components.item', 'components.uom', 'orderItemNotes', 'orderItemNotes.user', 'events'],
     });
   }
 
@@ -305,12 +352,17 @@ export class OrderItemsService {
         });
       }
 
-      const fullyProduced = newProduced >= orderedQty - 1e-9;
-      const nextStatus =
-        fullyProduced && orderItem.status !== 'Void' ? 'Printed' : orderItem.status;
+      await this.appendEvent(queryRunner, orderItemId, 'PRODUCTION', additional);
+
+      const nextStatus = this.computeLineStatus({
+        ...orderItem,
+        quantityProduced: newProduced,
+      } as OrderItems);
 
       await queryRunner.manager.update(OrderItems, orderItemId, {
         quantityProduced: newProduced,
+        // Keep legacy column in sync (printing == production)
+        quantityPrinted: newProduced,
         status: nextStatus,
       });
 
@@ -320,7 +372,230 @@ export class OrderItemsService {
 
       return this.orderItemsRepository.findOne({
         where: { id: orderItemId },
-        relations: ['order', 'item', 'service', 'nonStockService', 'pricing', 'uom', 'components', 'components.item', 'components.uom'],
+        relations: ['order', 'item', 'service', 'nonStockService', 'pricing', 'uom', 'components', 'components.item', 'components.uom', 'events'],
+      });
+    } catch (e) {
+      await queryRunner.rollbackTransaction();
+      throw e;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Printing step:
+   * Printing == Production (same step). This endpoint advances quantityProduced.
+   *
+   * - ALL: advance to full quantity (print all)
+   * - COMPLETED: no-op (already completed == produced)
+   * - CUSTOM: advance by an explicit quantity (bounded by remaining)
+   */
+  async recordPrint(orderItemId: string, dto: RecordPrintDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const orderItem = await queryRunner.manager.findOne(OrderItems, {
+        where: { id: orderItemId },
+        relations: ['item'],
+      });
+
+      if (!orderItem) {
+        throw new NotFoundException('Order item not found');
+      }
+
+      const orderedQty = this.clampNonNegativeFloat(orderItem.quantity);
+      if (orderedQty <= 0) {
+        throw new BadRequestException('Order item has invalid quantity');
+      }
+
+      const produced = this.clampNonNegativeFloat(orderItem.quantityProduced);
+      const remainingToProduce = Math.max(0, orderedQty - produced);
+
+      let additionalToProduce = 0;
+      if (dto.mode === 'ALL') {
+        additionalToProduce = remainingToProduce;
+      } else if (dto.mode === 'COMPLETED') {
+        additionalToProduce = 0;
+      } else {
+        const requested = this.clampNonNegativeFloat(dto.quantity);
+        if (!(requested > 0)) {
+          throw new BadRequestException('quantity must be a positive number when mode is CUSTOM');
+        }
+        additionalToProduce = Math.min(requested, remainingToProduce);
+      }
+
+      if (!(additionalToProduce > 0)) {
+        throw new BadRequestException('Nothing to record (already fully completed/printed)');
+      }
+
+      const newProduced = produced + additionalToProduce;
+
+      // Printing == Production, so this step always behaves like production:
+      // deduct stock proportionally (stock services only).
+      if (additionalToProduce > 0 && !orderItem.isNonStockService) {
+        const unitPortion = (orderItem.unit / orderedQty) * additionalToProduce;
+        if (unitPortion > 0) {
+          const operatorStock = await queryRunner.manager.findOne(OperatorStock, {
+            where: { itemId: orderItem.itemId },
+          });
+
+          if (!operatorStock) {
+            throw new ConflictException(
+              `Please make a request for item ${orderItem.item?.name ?? orderItem.itemId} before trying to print`,
+            );
+          }
+
+          if (operatorStock.quantity < unitPortion) {
+            throw new ConflictException(
+              `Insufficient stock for item: ${orderItem.item?.name}. Available: ${operatorStock.quantity}, Required: ${unitPortion}`,
+            );
+          }
+
+          await queryRunner.manager.update(OperatorStock, operatorStock.id, {
+            quantity: operatorStock.quantity - unitPortion,
+          });
+        }
+      }
+
+      await this.appendEvent(queryRunner, orderItemId, 'PRINT', additionalToProduce, dto.mode);
+
+      const nextStatus = this.computeLineStatus({
+        ...orderItem,
+        quantityProduced: newProduced,
+      } as any);
+
+      await queryRunner.manager.update(OrderItems, orderItemId, {
+        quantityProduced: newProduced,
+        // Keep legacy column in sync (printing == production)
+        quantityPrinted: newProduced,
+        status: nextStatus,
+      });
+
+      await queryRunner.commitTransaction();
+      await this.updateOrderStatus(orderItem.orderId);
+
+      return this.orderItemsRepository.findOne({
+        where: { id: orderItemId },
+        relations: ['order', 'item', 'service', 'nonStockService', 'pricing', 'uom', 'components', 'components.item', 'components.uom', 'events'],
+      });
+    } catch (e) {
+      await queryRunner.rollbackTransaction();
+      throw e;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async recordQualityControl(orderItemId: string, dto: RecordStepQuantityDto) {
+    const additional = this.clampNonNegativeFloat(dto.additionalQuantity);
+    if (!(additional > 0)) {
+      throw new BadRequestException('additionalQuantity must be a positive number');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const orderItem = await queryRunner.manager.findOne(OrderItems, { where: { id: orderItemId } });
+      if (!orderItem) {
+        throw new NotFoundException('Order item not found');
+      }
+
+      const orderedQty = this.clampNonNegativeFloat(orderItem.quantity);
+      const produced = this.clampNonNegativeFloat(orderItem.quantityProduced);
+      const qc = this.clampNonNegativeFloat((orderItem as any).quantityQualityControlled);
+
+      const remainingProducedToQc = Math.max(0, Math.min(orderedQty, produced) - qc);
+      if (additional > remainingProducedToQc + 1e-9) {
+        throw new BadRequestException(`Cannot QC ${additional}; only ${remainingProducedToQc} completed units remain for QC`);
+      }
+
+      const newQc = qc + additional;
+
+      await this.appendEvent(queryRunner, orderItemId, 'QUALITY_CONTROL', additional);
+
+      const nextStatus = this.computeLineStatus({
+        ...orderItem,
+        quantityQualityControlled: newQc,
+      } as any);
+
+      await queryRunner.manager.update(OrderItems, orderItemId, {
+        quantityQualityControlled: newQc,
+        status: nextStatus,
+      });
+
+      await queryRunner.commitTransaction();
+      await this.updateOrderStatus(orderItem.orderId);
+
+      return this.orderItemsRepository.findOne({
+        where: { id: orderItemId },
+        relations: ['order', 'item', 'service', 'nonStockService', 'pricing', 'uom', 'components', 'components.item', 'components.uom', 'events'],
+      });
+    } catch (e) {
+      await queryRunner.rollbackTransaction();
+      throw e;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async recordDelivery(orderItemId: string, dto: RecordStepQuantityDto) {
+    const additional = this.clampNonNegativeFloat(dto.additionalQuantity);
+    if (!(additional > 0)) {
+      throw new BadRequestException('additionalQuantity must be a positive number');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const orderItem = await queryRunner.manager.findOne(OrderItems, { where: { id: orderItemId } });
+      if (!orderItem) {
+        throw new NotFoundException('Order item not found');
+      }
+
+      const orderPayment = await queryRunner.manager.findOne(PaymentTerm, {
+        where: { orderId: orderItem.orderId },
+      });
+      if (orderPayment && orderPayment.forcePayment && orderPayment.remainingAmount > 0) {
+        throw new ConflictException(
+          `Payment is not completed. Cannot deliver order with outstanding payment of ${orderPayment.remainingAmount}.`,
+        );
+      }
+
+      const orderedQty = this.clampNonNegativeFloat(orderItem.quantity);
+      const qc = this.clampNonNegativeFloat((orderItem as any).quantityQualityControlled);
+      const delivered = this.clampNonNegativeFloat((orderItem as any).quantityDelivered);
+
+      const remainingQcToDeliver = Math.max(0, Math.min(orderedQty, qc) - delivered);
+      if (additional > remainingQcToDeliver + 1e-9) {
+        throw new BadRequestException(`Cannot deliver ${additional}; only ${remainingQcToDeliver} QC units remain to deliver`);
+      }
+
+      const newDelivered = delivered + additional;
+
+      await this.appendEvent(queryRunner, orderItemId, 'DELIVERY', additional);
+
+      const nextStatus = this.computeLineStatus({
+        ...orderItem,
+        quantityDelivered: newDelivered,
+      } as any);
+
+      await queryRunner.manager.update(OrderItems, orderItemId, {
+        quantityDelivered: newDelivered,
+        status: nextStatus,
+      });
+
+      await queryRunner.commitTransaction();
+      await this.updateOrderStatus(orderItem.orderId);
+
+      return this.orderItemsRepository.findOne({
+        where: { id: orderItemId },
+        relations: ['order', 'item', 'service', 'nonStockService', 'pricing', 'uom', 'components', 'components.item', 'components.uom', 'events'],
       });
     } catch (e) {
       await queryRunner.rollbackTransaction();

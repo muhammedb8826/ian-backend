@@ -7,12 +7,13 @@ import { Order } from 'src/entities/order.entity';
 import { OperatorStock } from 'src/entities/operator-stock.entity';
 import { PaymentTerm } from 'src/entities/payment-term.entity';
 import { OrderItemComponent } from 'src/entities/order-item-component.entity';
+import { OrderItemEvent } from 'src/entities/order-item-event.entity';
 import { BomModule } from 'src/bom/bom.module';
 
 @Module({
   imports: [
     BomModule,
-    TypeOrmModule.forFeature([OrderItems, Order, OperatorStock, PaymentTerm, OrderItemComponent]),
+    TypeOrmModule.forFeature([OrderItems, Order, OperatorStock, PaymentTerm, OrderItemComponent, OrderItemEvent]),
   ],
   controllers: [OrderItemsController],
   providers: [OrderItemsService],

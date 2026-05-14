@@ -7,6 +7,7 @@ import { Service } from './service.entity';
 import { NonStockService } from './non-stock-service.entity';
 import { OrderItemNotes } from './order-item-notes.entity';
 import { OrderItemComponent } from './order-item-component.entity';
+import { OrderItemEvent } from 'src/entities/order-item-event.entity';
 
 @Entity('order_items')
 export class OrderItems {
@@ -56,6 +57,18 @@ export class OrderItems {
   @Column('float', { default: 0 })
   quantityProduced: number;
 
+  /** Cumulative units that have been printed/recorded as printed. */
+  @Column('float', { default: 0 })
+  quantityPrinted: number;
+
+  /** Cumulative units that passed quality control. */
+  @Column('float', { default: 0 })
+  quantityQualityControlled: number;
+
+  /** Cumulative units delivered to the customer. */
+  @Column('float', { default: 0 })
+  quantityDelivered: number;
+
   @Column('float')
   unitPrice: number;
 
@@ -94,6 +107,9 @@ export class OrderItems {
 
   @OneToMany(() => OrderItemComponent, component => component.orderItem)
   components: OrderItemComponent[];
+
+  @OneToMany(() => OrderItemEvent, event => event.orderItem)
+  events: OrderItemEvent[];
 
   @ManyToOne(() => Item, item => item.OrderItems)
   @JoinColumn({ name: 'itemId' })
